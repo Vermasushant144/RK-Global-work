@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { supabase } from '../lib/supabaseClient';
 
 const AuthContext = createContext({
   isLoggedIn: false,
@@ -9,7 +10,8 @@ const AuthContext = createContext({
   user: null,
   login: () => {},
   register: () => {},
-  logout: () => {}
+  logout: () => {},
+  loading: true
 });
 
 export function AuthProvider({ children }) {
@@ -17,92 +19,209 @@ export function AuthProvider({ children }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
 
   const router = useRouter();
   const pathname = usePathname();
 
+  // On mount: check Supabase session
   useEffect(() => {
-    // Check local session on load
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('rk_user_session');
-
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
-        setIsLoggedIn(true);
-        setUser(userData);
-        if (userData.isAdmin) {
-          setIsAdmin(true);
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const u = session.user;
+          const adminFlag = u.email?.toLowerCase().includes('admin') || u.user_metadata?.isAdmin === true;
+          setIsLoggedIn(true);
+          setIsAdmin(adminFlag);
+          setUser({ email: u.email, fullName: u.user_metadata?.full_name || '', isAdmin: adminFlag, id: u.id });
+        } else {
+          // Fallback: check localStorage session
+          if (typeof window !== 'undefined') {
+            const storedUser = localStorage.getItem('rk_user_session');
+            if (storedUser) {
+              const userData = JSON.parse(storedUser);
+              setIsLoggedIn(true);
+              setUser(userData);
+              if (userData.isAdmin) setIsAdmin(true);
+            }
+          }
+        }
+      } catch (e) {
+        // Supabase not configured yet - use localStorage fallback
+        if (typeof window !== 'undefined') {
+          const storedUser = localStorage.getItem('rk_user_session');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            setIsLoggedIn(true);
+            setUser(userData);
+            if (userData.isAdmin) setIsAdmin(true);
+          }
         }
       }
-
       setLoading(false);
-    }
+    };
+
+    checkSession();
+
+    // Listen to Supabase auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const u = session.user;
+        const adminFlag = u.email?.toLowerCase().includes('admin') || u.user_metadata?.isAdmin === true;
+        setIsLoggedIn(true);
+        setIsAdmin(adminFlag);
+        setUser({ email: u.email, fullName: u.user_metadata?.full_name || '', isAdmin: adminFlag, id: u.id });
+      } else if (_event === 'SIGNED_OUT') {
+        setIsLoggedIn(false);
+        setIsAdmin(false);
+        setUser(null);
+      }
+    });
+
+    return () => subscription?.unsubscribe?.();
   }, []);
 
+  // Route protection
   useEffect(() => {
     if (loading) return;
-
-    // Allowed public routes when unauthenticated
     const isPublicRoute = pathname === '/login' || pathname === '/register';
-
-    // 1. If not logged in and on any route other than /login or /register -> Redirect to /login
     if (!isLoggedIn && !isPublicRoute) {
       router.push('/login');
       return;
     }
-
-    // 2. If normal user tries to visit /admin -> Redirect to home /
     if (pathname.startsWith('/admin') && !isAdmin) {
       router.push('/');
       return;
     }
   }, [isLoggedIn, isAdmin, pathname, loading, router]);
 
-  // Unified Login Handler (Auto-detects Admin or Normal User)
-  const login = (email, password) => {
-    const isTargetAdmin = email.toLowerCase().includes('admin') || password === 'admin123';
-    const userData = { email, isAdmin: isTargetAdmin };
+  // ── LOGIN ──────────────────────────────────────────────
+  const login = async (email, password) => {
+    setAuthError('');
 
-    setIsLoggedIn(true);
-    setIsAdmin(isTargetAdmin);
-    setUser(userData);
+    // Admin hardcoded shortcut
+    const isHardcodedAdmin =
+      email.toLowerCase() === 'admin@rkglobalengineering.com' && password === 'admin123';
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rk_user_session', JSON.stringify(userData));
+    if (isHardcodedAdmin) {
+      const userData = { email, isAdmin: true, fullName: 'Admin' };
+      setIsLoggedIn(true);
+      setIsAdmin(true);
+      setUser(userData);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rk_user_session', JSON.stringify(userData));
+      }
+      router.push('/admin');
+      return;
     }
 
-    if (isTargetAdmin) {
-      router.push('/admin');
-    } else {
-      router.push('/');
+    // Try Supabase Auth
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        // Fallback to localStorage registered users
+        if (typeof window !== 'undefined') {
+          const usersList = JSON.parse(localStorage.getItem('rk_registered_users') || '[]');
+          const found = usersList.find(u => u.email === email && u.password === password);
+          if (found) {
+            const userData = { email, fullName: found.fullName, isAdmin: false };
+            setIsLoggedIn(true);
+            setIsAdmin(false);
+            setUser(userData);
+            localStorage.setItem('rk_user_session', JSON.stringify(userData));
+            router.push('/');
+            return;
+          }
+        }
+        setAuthError('Invalid email or password. Please try again.');
+        return;
+      }
+      if (data?.user) {
+        const u = data.user;
+        const adminFlag = u.email?.toLowerCase().includes('admin');
+        const userData = { email: u.email, fullName: u.user_metadata?.full_name || '', isAdmin: adminFlag, id: u.id };
+        setIsLoggedIn(true);
+        setIsAdmin(adminFlag);
+        setUser(userData);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('rk_user_session', JSON.stringify(userData));
+        }
+        router.push(adminFlag ? '/admin' : '/');
+      }
+    } catch (e) {
+      setAuthError('Connection error. Please try again.');
     }
   };
 
-  // Register Handler
-  const register = (fullName, email, password) => {
-    const isTargetAdmin = email.toLowerCase().includes('admin');
-    const userData = { fullName, email, isAdmin: isTargetAdmin };
+  // ── REGISTER ───────────────────────────────────────────
+  const register = async (fullName, email, password) => {
+    setAuthError('');
 
-    setIsLoggedIn(true);
-    setIsAdmin(isTargetAdmin);
-    setUser(userData);
+    // Try Supabase Auth signup
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName }
+        }
+      });
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rk_user_session', JSON.stringify(userData));
-      // Store mock user database
-      const usersList = JSON.parse(localStorage.getItem('rk_registered_users') || '[]');
-      usersList.push({ fullName, email, password });
-      localStorage.setItem('rk_registered_users', JSON.stringify(usersList));
-    }
+      if (error) {
+        // Supabase error (e.g. user already exists) — fallback to localStorage
+        if (typeof window !== 'undefined') {
+          const usersList = JSON.parse(localStorage.getItem('rk_registered_users') || '[]');
+          const exists = usersList.find(u => u.email === email);
+          if (exists) {
+            setAuthError('Email already registered. Please login.');
+            return;
+          }
+          usersList.push({ fullName, email, password });
+          localStorage.setItem('rk_registered_users', JSON.stringify(usersList));
+        }
+      }
 
-    if (isTargetAdmin) {
-      router.push('/admin');
-    } else {
+      // Either way, log them in
+      const userData = { fullName, email, isAdmin: false, id: data?.user?.id };
+      setIsLoggedIn(true);
+      setIsAdmin(false);
+      setUser(userData);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rk_user_session', JSON.stringify(userData));
+        // Also store in local list for fallback
+        const usersList = JSON.parse(localStorage.getItem('rk_registered_users') || '[]');
+        if (!usersList.find(u => u.email === email)) {
+          usersList.push({ fullName, email, password });
+          localStorage.setItem('rk_registered_users', JSON.stringify(usersList));
+        }
+      }
       router.push('/');
+    } catch (e) {
+      // Supabase not available — use localStorage only
+      if (typeof window !== 'undefined') {
+        const usersList = JSON.parse(localStorage.getItem('rk_registered_users') || '[]');
+        const exists = usersList.find(u => u.email === email);
+        if (exists) {
+          setAuthError('Email already registered. Please login.');
+          return;
+        }
+        usersList.push({ fullName, email, password });
+        localStorage.setItem('rk_registered_users', JSON.stringify(usersList));
+        const userData = { fullName, email, isAdmin: false };
+        setIsLoggedIn(true);
+        setUser(userData);
+        localStorage.setItem('rk_user_session', JSON.stringify(userData));
+        router.push('/');
+      }
     }
   };
 
-  const logout = () => {
+  // ── LOGOUT ─────────────────────────────────────────────
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {}
     setIsLoggedIn(false);
     setIsAdmin(false);
     setUser(null);
@@ -113,7 +232,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isAdmin, user, login, register, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, isAdmin, user, login, register, logout, loading, authError }}>
       {children}
     </AuthContext.Provider>
   );

@@ -8,12 +8,12 @@ import { Flag, LayoutGrid, Target, List, Menu } from 'lucide-react';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  const { login, authError } = useAuth();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) return;
-    login(email, password);
+    await login(email, password);
   };
 
   return (
@@ -41,6 +41,12 @@ export default function LoginPage() {
           <p style={{ fontSize: '0.95rem', color: '#64748B', marginBottom: '32px' }}>
             Welcome back! Please enter your details.
           </p>
+
+          {authError && (
+            <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '0.875rem', color: '#DC2626', fontWeight: 600 }}>
+              {authError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             

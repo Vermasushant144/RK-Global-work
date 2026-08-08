@@ -10,12 +10,12 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const { register } = useAuth();
+  const { register, authError } = useAuth();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim() || !password.trim()) return;
-    register(fullName, email, password);
+    await register(fullName, email, password);
   };
 
   return (
@@ -43,6 +43,12 @@ export default function RegisterPage() {
           <p style={{ fontSize: '0.95rem', color: '#64748B', marginBottom: '28px' }}>
             Join R.K. Global Engineering portal for machinery pricing and specifications.
           </p>
+
+          {authError && (
+            <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '0.875rem', color: '#DC2626', fontWeight: 600 }}>
+              {authError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             
