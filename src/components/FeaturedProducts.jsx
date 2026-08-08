@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Eye, Send } from 'lucide-react';
-import { products } from '../data/products';
+import { useData } from '../context/DataContext';
 
 export default function FeaturedProducts({ onOpenQuote }) {
+  const { products } = useData();
   const [activeTab, setActiveTab] = useState('all');
 
   const filterTabs = [
@@ -17,8 +18,8 @@ export default function FeaturedProducts({ onOpenQuote }) {
   ];
 
   const filteredProducts = activeTab === 'all' 
-    ? products 
-    : products.filter(p => p.category === activeTab);
+    ? (products || [])
+    : (products || []).filter(p => p.category === activeTab);
 
   return (
     <section style={{ padding: '100px 0', backgroundColor: '#FFFFFF' }}>
@@ -75,7 +76,10 @@ export default function FeaturedProducts({ onOpenQuote }) {
 
                 {/* Key Specs */}
                 <div className="product-specs-list">
-                  {p.keySpecs.map((spec, i) => (
+                  {(p.keySpecs || [
+                    { label: 'Price', value: p.priceFormatted || 'On Request' },
+                    { label: 'Category', value: p.categoryName || 'Equipment' }
+                  ]).map((spec, i) => (
                     <div key={i} className="spec-item">
                       <span className="spec-key">{spec.label}:</span>
                       <span className="spec-val">{spec.value}</span>

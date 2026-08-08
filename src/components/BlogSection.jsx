@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { ArrowRight, Calendar, Tag } from 'lucide-react';
-import { insights } from '../data/insights';
+import { useData } from '../context/DataContext';
 
 export default function BlogSection() {
+  const { blogs } = useData();
+  const insights = blogs || [];
   return (
     <section id="insights" style={{ padding: '100px 0', backgroundColor: '#FFFFFF' }}>
       <div className="container">

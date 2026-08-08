@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import './globals.css';
 import { AuthProvider } from '../context/AuthContext';
+import { DataProvider } from '../context/DataContext';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import QuoteModal from '../components/QuoteModal';
@@ -37,38 +38,40 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <AuthProvider>
-          <Header 
-            onOpenQuote={() => handleOpenQuote()} 
-            onOpenSearch={() => setIsSearchOpen(true)} 
-          />
+          <DataProvider>
+            <Header 
+              onOpenQuote={() => handleOpenQuote()} 
+              onOpenSearch={() => setIsSearchOpen(true)} 
+            />
 
-          <main style={{ flexGrow: 1 }}>
-            {children}
-          </main>
+            <main style={{ flexGrow: 1 }}>
+              {children}
+            </main>
 
-          <Footer onOpenQuote={() => handleOpenQuote()} />
+            <Footer onOpenQuote={() => handleOpenQuote()} />
 
-          <FloatingCTABar onOpenQuote={() => handleOpenQuote()} />
+            <FloatingCTABar onOpenQuote={() => handleOpenQuote()} />
 
-          {/* First-Time Automatic Enquiry Popup Modal */}
-          <FirstTimePopupModal onToast={handleShowToast} />
+            {/* First-Time Automatic Enquiry Popup Modal */}
+            <FirstTimePopupModal onToast={handleShowToast} />
 
-          <QuoteModal 
-            isOpen={isQuoteOpen} 
-            onClose={() => setIsQuoteOpen(false)} 
-            selectedProduct={selectedProduct}
-            onToast={handleShowToast}
-          />
+            <QuoteModal 
+              isOpen={isQuoteOpen} 
+              onClose={() => setIsQuoteOpen(false)} 
+              selectedProduct={selectedProduct}
+              onToast={handleShowToast}
+            />
 
-          <SearchModal 
-            isOpen={isSearchOpen} 
-            onClose={() => setIsSearchOpen(false)} 
-          />
+            <SearchModal 
+              isOpen={isSearchOpen} 
+              onClose={() => setIsSearchOpen(false)} 
+            />
 
-          <Toast 
-            message={toastMsg} 
-            onClose={() => setToastMsg('')} 
-          />
+            <Toast 
+              message={toastMsg} 
+              onClose={() => setToastMsg('')} 
+            />
+          </DataProvider>
         </AuthProvider>
       </body>
     </html>

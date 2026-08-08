@@ -34,261 +34,123 @@ const iconMap = {
 };
 
 export default function HeroSlide({ slide, isActive, onOpenQuote }) {
-  const [imgSrc, setImgSrc] = useState(slide.image);
+  const [imgSrc, setImgSrc] = useState(slide.image || '/images/img/Untitled design - 2026-02-02T154951.040.webp');
 
   const handleError = () => {
     if (slide.fallbackImage && imgSrc !== slide.fallbackImage) {
       setImgSrc(slide.fallbackImage);
+    } else {
+      setImgSrc('/images/rebar-bending.svg');
     }
   };
 
+  // Safe Fallbacks for admin slides vs static slides
+  const title = slide.title || (slide.headingLine1 ? `${slide.headingLine1} ${slide.headingLine2 || ''}` : 'Heavy Duty Construction Machinery');
+  const description = slide.subtitle || slide.description || 'High performance B2B construction equipment manufactured in India with ex-factory pricing and 1-year warranty.';
+  const badgeText = slide.badge || slide.eyebrow || 'R K GLOBAL ENGINEERING';
+  const featuresList = slide.features && Array.isArray(slide.features) ? slide.features : [
+    { icon: 'ShieldCheck', label: 'ISO 9001 Certified' },
+    { icon: 'Award', label: 'Factory Direct Price' },
+    { icon: 'Wrench', label: '1-Year Warranty' },
+    { icon: 'CheckCircle2', label: 'Pan-India Delivery' }
+  ];
+
   return (
-    <div className={`hero-slide-item ${isActive ? 'active' : ''}`}>
+    <div className={`hero-slide-item ${isActive ? 'active' : ''}`} style={{ position: 'relative', minHeight: '620px', display: 'flex', alignItems: 'center' }}>
       {/* Background Machinery Image */}
-      <div className="slide-bg-wrapper">
+      <div className="slide-bg-wrapper" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
         <img 
-          src={imgSrc} 
-          alt={slide.category}
+          src={slide.image || imgSrc} 
+          alt={badgeText}
           onError={handleError}
-          style={{ objectPosition: slide.objectPosition || 'center center' }}
-          loading={isActive ? 'eager' : 'lazy'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: slide.objectPosition || 'center center' }}
         />
       </div>
 
-      {/* Dark Navy Gradient Overlay from left to right */}
-      <div className="slide-gradient-overlay" />
+      {/* Dark Navy Gradient Overlay */}
+      <div 
+        className="slide-gradient-overlay" 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(90deg, rgba(11, 31, 51, 0.95) 0%, rgba(11, 31, 51, 0.75) 50%, rgba(11, 31, 51, 0.35) 100%)',
+          zIndex: 2
+        }} 
+      />
 
       {/* Slide Content Container */}
-      <div className="container slide-content-container">
-        <div className="slide-text-box">
+      <div className="container slide-content-container" style={{ position: 'relative', zIndex: 3, padding: '80px 24px', color: '#FFFFFF' }}>
+        <div className="slide-text-box" style={{ maxWidth: '680px' }}>
           
-          {/* Eyebrow with Orange Accent Line */}
-          <div className="hero-eyebrow-line">
-            <span className="eyebrow-badge">{slide.eyebrow}</span>
-            <div className="orange-accent-line" />
+          {/* Eyebrow Badge */}
+          <div className="hero-eyebrow-line" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <span 
+              className="eyebrow-badge"
+              style={{
+                backgroundColor: '#F47B20',
+                color: '#FFFFFF',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                padding: '4px 12px',
+                borderRadius: '4px',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase'
+              }}
+            >
+              {badgeText}
+            </span>
           </div>
 
           {/* Main Headline */}
-          <h1 className="hero-title">
-            <span>{slide.headingLine1}</span> <br />
-            <span className="text-orange">{slide.headingLine2}</span>
+          <h1 className="hero-title" style={{ fontSize: 'clamp(2rem, 4vw, 3.2rem)', fontWeight: 900, lineHeight: 1.15, marginBottom: '16px', color: '#FFFFFF' }}>
+            {title}
           </h1>
 
           {/* Description */}
-          <p className="hero-description">
-            {slide.description}
+          <p className="hero-description" style={{ fontSize: '1.05rem', color: '#E2E8F0', lineHeight: 1.6, marginBottom: '28px' }}>
+            {description}
           </p>
 
           {/* 4 Feature Items with Icons */}
-          <div className="hero-features-grid">
-            {slide.features.map((feat, idx) => {
+          <div className="hero-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '36px' }}>
+            {featuresList.map((feat, idx) => {
               const IconComp = iconMap[feat.icon] || ShieldCheck;
               return (
-                <div key={idx} className="hero-feature-item">
-                  <div className="feature-icon-circle">
-                    <IconComp size={18} />
+                <div key={idx} className="hero-feature-item" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className="feature-icon-circle" style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(244, 123, 32, 0.2)', color: '#F47B20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconComp size={16} />
                   </div>
-                  <span className="feature-text">{feat.label}</span>
+                  <span className="feature-text" style={{ fontSize: '0.875rem', fontWeight: 700, color: '#F8FAFC' }}>
+                    {feat.label || feat.text}
+                  </span>
                 </div>
               );
             })}
           </div>
 
           {/* Action Buttons */}
-          <div className="hero-buttons-row">
-            <Link href={slide.primaryCta.href || '/products'} className="btn btn-primary btn-hero">
-              <span>{slide.primaryCta.text}</span>
+          <div className="hero-buttons-row" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              className="btn btn-primary" 
+              onClick={onOpenQuote}
+              style={{ padding: '14px 28px', fontSize: '0.95rem' }}
+            >
+              <span>Request Quote Now</span>
+              <ArrowRight size={18} />
+            </button>
+
+            <Link href="/products" className="btn btn-outline" style={{ borderColor: '#FFFFFF', color: '#FFFFFF', padding: '14px 28px', fontSize: '0.95rem' }}>
+              <span>View 2026 Catalog</span>
               <ArrowRight size={18} />
             </Link>
-
-            {slide.secondaryCta.action === 'quote' ? (
-              <button type="button" className="btn btn-outline-white btn-hero" onClick={onOpenQuote}>
-                <span>{slide.secondaryCta.text}</span>
-                <ArrowRight size={18} />
-              </button>
-            ) : (
-              <Link href={slide.secondaryCta.href || '/contact'} className="btn btn-outline-white btn-hero">
-                <span>{slide.secondaryCta.text}</span>
-                <ArrowRight size={18} />
-              </Link>
-            )}
           </div>
 
         </div>
       </div>
-
-      <style jsx>{`
-        .hero-slide-item {
-          position: absolute;
-          inset: 0;
-          opacity: 0;
-          visibility: hidden;
-          transition: opacity 700ms ease-in-out, transform 700ms ease-in-out;
-          transform: scale(1.03);
-          z-index: 1;
-        }
-
-        .hero-slide-item.active {
-          opacity: 1;
-          visibility: visible;
-          transform: scale(1);
-          z-index: 2;
-        }
-
-        .slide-bg-wrapper {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-        }
-
-        .slide-bg-wrapper img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-        }
-
-        .slide-gradient-overlay {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            90deg, 
-            rgba(11, 31, 51, 0.95) 0%, 
-            rgba(11, 31, 51, 0.88) 38%, 
-            rgba(11, 31, 51, 0.4) 65%, 
-            rgba(11, 31, 51, 0.15) 100%
-          );
-        }
-
-        .slide-content-container {
-          position: relative;
-          z-index: 10;
-          height: 100%;
-          display: flex;
-          align-items: center;
-        }
-
-        .slide-text-box {
-          max-width: 620px;
-          color: #FFFFFF;
-        }
-
-        .hero-eyebrow-line {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          margin-bottom: 16px;
-        }
-
-        .eyebrow-badge {
-          font-size: 0.78rem;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-          color: var(--accent);
-        }
-
-        .orange-accent-line {
-          width: 48px;
-          height: 3px;
-          background-color: var(--accent);
-          border-radius: 2px;
-        }
-
-        .hero-title {
-          font-size: clamp(2.2rem, 4.8vw, 4.2rem);
-          font-weight: 900;
-          line-height: 1.05;
-          text-transform: uppercase;
-          letter-spacing: -0.03em;
-          color: #FFFFFF;
-          margin-bottom: 18px;
-        }
-
-        .text-orange {
-          color: var(--accent) !important;
-        }
-
-        .hero-description {
-          font-size: clamp(0.95rem, 1.5vw, 1.125rem);
-          line-height: 1.6;
-          color: #E2E8F0;
-          margin-bottom: 28px;
-          max-width: 540px;
-        }
-
-        .hero-features-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 12px;
-          margin-bottom: 34px;
-        }
-
-        .hero-feature-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-          gap: 6px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          backdrop-filter: blur(6px);
-          padding: 10px 8px;
-          border-radius: var(--radius-sm);
-        }
-
-        .feature-icon-circle {
-          color: var(--accent);
-        }
-
-        .feature-text {
-          font-size: 0.725rem;
-          font-weight: 700;
-          color: #FFFFFF;
-          line-height: 1.2;
-        }
-
-        .hero-buttons-row {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-
-        .btn-hero {
-          padding: 0.95rem 2.2rem;
-          font-size: 0.95rem;
-        }
-
-        @media (max-width: 992px) {
-          .slide-gradient-overlay {
-            background: linear-gradient(
-              180deg, 
-              rgba(11, 31, 51, 0.85) 0%, 
-              rgba(11, 31, 51, 0.94) 70%,
-              rgba(11, 31, 51, 0.98) 100%
-            );
-          }
-          .hero-title {
-            font-size: 2.8rem;
-          }
-          .hero-features-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (max-width: 600px) {
-          .hero-title {
-            font-size: 2.2rem;
-          }
-          .hero-buttons-row {
-            flex-direction: column;
-          }
-          .btn-hero {
-            width: 100%;
-          }
-        }
-      `}</style>
     </div>
   );
 }

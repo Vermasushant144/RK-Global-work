@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Calendar, User, ArrowRight, RotateCcw } from 'lucide-react';
-import { insights } from '../../data/insights';
+import { useData } from '../../context/DataContext';
 
 export default function BlogsPage() {
+  const { blogs } = useData();
+  const insights = blogs || [];
+
   const [selectedCategory, setSelectedCategory] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9;

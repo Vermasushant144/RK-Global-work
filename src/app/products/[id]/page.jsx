@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { products } from '../../../data/products';
+import { products as staticProducts } from '../../../data/products';
 import { 
   ChevronRight, 
   Check, 
@@ -21,7 +21,9 @@ export default function ProductDetailPage() {
   const params = useParams();
   const productId = params?.id;
 
-  const product = products.find(p => p.id === productId) || products[0];
+  const { products } = useData();
+  const allProducts = products && products.length > 0 ? products : staticProducts;
+  const product = allProducts.find(p => p.id === productId || p.code === productId) || allProducts[0];
 
   const [activeImage, setActiveImage] = useState(product.image);
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'description'

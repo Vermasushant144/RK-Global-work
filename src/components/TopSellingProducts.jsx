@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { Tag, ArrowRight } from 'lucide-react';
-import { products } from '../data/products';
+import { useData } from '../context/DataContext';
 
 export default function TopSellingProducts({ onOpenQuote }) {
-  const topProducts = products.filter(p => p.isTopSelling).slice(0, 6);
+  const { products } = useData();
+  const topProducts = products ? products.filter(p => p.isTopSelling || true).slice(0, 6) : [];
 
   return (
     <section style={{ padding: '80px 0', backgroundColor: '#F8FAFC' }}>

@@ -27,8 +27,27 @@ import {
 import { products as initialProducts } from '../../data/products';
 import { insights as initialBlogs } from '../../data/insights';
 
+import { useData } from '../../context/DataContext';
+
 export default function AdminDashboardPage() {
   const { logout, isAdmin } = useAuth();
+  const { 
+    products, 
+    slides, 
+    blogs, 
+    aboutData, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    addSlide, 
+    updateSlide, 
+    deleteSlide, 
+    addBlog, 
+    updateBlog, 
+    deleteBlog, 
+    updateAbout 
+  } = useData();
+
   const [activeTab, setActiveTab] = useState('enquiries');
 
   // Notification Banner State
@@ -55,32 +74,22 @@ export default function AdminDashboardPage() {
     { id: '3', name: 'Vikram Singh', phone: '+91 98888 77766', email: 'vikram@larsen-infra.com', state: 'Gujarat', category: 'Road Rollers', source: 'Contact Form', status: 'Closed', date: '2026-08-07 11:20' }
   ]);
 
-  // 2. HERO SLIDER STATE
-  const [slides, setSlides] = useState([
-    { id: '1', title: 'Heavy Duty Rebar Cutting & Bending Machines', subtitle: 'High precision hydraulic benders for infrastructure contractors.', badge: 'OFFICIAL MANUFACTURER', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' },
-    { id: '2', title: 'Industrial Grade Concrete Mixers & Batching', subtitle: 'Ex-factory prices across India with site warranty.', badge: 'BESTSELLER 2026', image: '/images/img/CONCRETE MIXER MACHINE WITH LIFT.webp' },
-    { id: '3', title: 'High Rise Suspended Platform Hoists', subtitle: 'ZLP800 800kg load rating with safety lock mechanism.', badge: 'PAN INDIA DELIVERY', image: '/images/img/SUSPENDED PLATFORM.webp' }
-  ]);
+  // Modal states for CRUD operations
   const [slideModal, setSlideModal] = useState({ open: false, isEdit: false, data: { id: '', title: '', subtitle: '', badge: 'NEW ARRIVAL', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' } });
 
-  // 3. PRODUCTS STATE
-  const [products, setProducts] = useState(initialProducts);
   const [productModal, setProductModal] = useState({
     open: false,
     isEdit: false,
     data: { id: '', code: '', name: '', priceFormatted: '₹ 1,50,000', categoryName: 'Rebar Processing', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp', description: '' }
   });
 
-  // 4. BLOGS STATE
-  const [blogs, setBlogs] = useState(initialBlogs);
   const [blogModal, setBlogModal] = useState({
     open: false,
     isEdit: false,
     data: { id: '', title: '', category: 'Rebar Processing', author: 'R.K. Global Engineering', date: 'Aug 08, 2026', readTime: '5 min read', image: '/images/about-banner.png', content: '<p>Enter article content here...</p>' }
   });
 
-  // 5. ABOUT US SECTION STATE
-  const [aboutData, setAboutData] = useState({
+  const [aboutFormState, setAboutFormState] = useState(aboutData || {
     eyebrow: 'OFFICIAL R.K. GLOBAL ENGINEERING',
     title: 'Two Decades of Engineering Excellence in Construction Machinery',
     subtitle: 'We combine heavy manufacturing precision with ISO 9001 quality controls to deliver rugged machinery contractors trust implicitly across India.',
@@ -137,28 +146,18 @@ export default function AdminDashboardPage() {
   const handleSaveSlide = async (e) => {
     e.preventDefault();
     if (slideModal.isEdit) {
-      setSlides(slides.map(s => s.id === slideModal.data.id ? slideModal.data : s));
-      try {
-        await supabase.from('hero_slides').upsert(slideModal.data);
-      } catch (err) {}
-      showNotify('Hero slide updated & saved to Supabase!');
+      updateSlide(slideModal.data);
+      showNotify('Hero slide updated & saved live to website!');
     } else {
-      const newS = { ...slideModal.data, id: Date.now().toString() };
-      setSlides([...slides, newS]);
-      try {
-        await supabase.from('hero_slides').insert(newS);
-      } catch (err) {}
-      showNotify('New slide added & saved to Supabase!');
+      addSlide(slideModal.data);
+      showNotify('New slide added live to website slider!');
     }
     setSlideModal({ open: false, isEdit: false, data: { id: '', title: '', subtitle: '', badge: 'NEW ARRIVAL', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' } });
   };
   const handleDeleteSlide = async (id) => {
     if (confirm('Delete this slide from homepage carousel?')) {
-      setSlides(slides.filter(s => s.id !== id));
-      try {
-        await supabase.from('hero_slides').delete().eq('id', id);
-      } catch (err) {}
-      showNotify('Slide deleted from database.');
+      deleteSlide(id);
+      showNotify('Slide deleted from website.');
     }
   };
 
@@ -166,28 +165,18 @@ export default function AdminDashboardPage() {
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (productModal.isEdit) {
-      setProducts(products.map(p => p.id === productModal.data.id ? productModal.data : p));
-      try {
-        await supabase.from('products').upsert(productModal.data);
-      } catch (err) {}
-      showNotify('Product updated & saved to Supabase!');
+      updateProduct(productModal.data);
+      showNotify('Product updated & saved live to website!');
     } else {
-      const newP = { ...productModal.data, id: productModal.data.code.toLowerCase().replace(/\s+/g, '-') || Date.now().toString() };
-      setProducts([newP, ...products]);
-      try {
-        await supabase.from('products').insert(newP);
-      } catch (err) {}
-      showNotify('New product saved to catalog & Supabase!');
+      addProduct(productModal.data);
+      showNotify('New product saved live to catalog!');
     }
     setProductModal({ open: false, isEdit: false, data: { id: '', code: '', name: '', priceFormatted: '₹ 1,50,000', categoryName: 'Rebar Processing', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp', description: '' } });
   };
   const handleDeleteProduct = async (id) => {
     if (confirm('Delete this product from catalog?')) {
-      setProducts(products.filter(p => p.id !== id));
-      try {
-        await supabase.from('products').delete().eq('id', id);
-      } catch (err) {}
-      showNotify('Product deleted.');
+      deleteProduct(id);
+      showNotify('Product deleted from website.');
     }
   };
 
@@ -195,38 +184,26 @@ export default function AdminDashboardPage() {
   const handleSaveBlog = async (e) => {
     e.preventDefault();
     if (blogModal.isEdit) {
-      setBlogs(blogs.map(b => b.id === blogModal.data.id ? blogModal.data : b));
-      try {
-        await supabase.from('blogs').upsert(blogModal.data);
-      } catch (err) {}
-      showNotify('Blog article updated & saved to Supabase!');
+      updateBlog(blogModal.data);
+      showNotify('Blog article updated & saved live!');
     } else {
-      const newB = { ...blogModal.data, id: Date.now().toString(), slug: blogModal.data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') };
-      setBlogs([newB, ...blogs]);
-      try {
-        await supabase.from('blogs').insert(newB);
-      } catch (err) {}
-      showNotify('New blog post published & saved to Supabase!');
+      addBlog(blogModal.data);
+      showNotify('New blog post published live!');
     }
     setBlogModal({ open: false, isEdit: false, data: { id: '', title: '', category: 'Rebar Processing', author: 'R.K. Global Engineering', date: 'Aug 08, 2026', readTime: '5 min read', image: '/images/about-banner.png', content: '<p>Enter article content here...</p>' } });
   };
   const handleDeleteBlog = async (id) => {
     if (confirm('Delete this blog article?')) {
-      setBlogs(blogs.filter(b => b.id !== id));
-      try {
-        await supabase.from('blogs').delete().eq('id', id);
-      } catch (err) {}
-      showNotify('Blog article deleted.');
+      deleteBlog(id);
+      showNotify('Blog article deleted from website.');
     }
   };
 
   // Save About Handler
   const handleSaveAbout = async (e) => {
     e.preventDefault();
-    try {
-      await supabase.from('site_settings').upsert({ key: 'about_section', value: aboutData });
-    } catch (err) {}
-    showNotify('About Us section updated & saved to Supabase!');
+    updateAbout(aboutData);
+    showNotify('About Us section updated & saved live to website!');
   };
 
   // Save Theme Handler
@@ -600,27 +577,27 @@ export default function AdminDashboardPage() {
               <form onSubmit={handleSaveAbout} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 <div>
                   <label className="form-label">Section Eyebrow Badge</label>
-                  <input type="text" className="form-input" value={aboutData.eyebrow} onChange={e => setAboutData({ ...aboutData, eyebrow: e.target.value })} />
+                  <input type="text" className="form-input" value={aboutFormState.eyebrow} onChange={e => setAboutFormState({ ...aboutFormState, eyebrow: e.target.value })} />
                 </div>
 
                 <div>
                   <label className="form-label">Main Section Heading Title *</label>
-                  <input type="text" className="form-input" required value={aboutData.title} onChange={e => setAboutData({ ...aboutData, title: e.target.value })} />
+                  <input type="text" className="form-input" required value={aboutFormState.title} onChange={e => setAboutFormState({ ...aboutFormState, title: e.target.value })} />
                 </div>
 
                 <div>
                   <label className="form-label">Main Description Text *</label>
-                  <textarea className="form-textarea" rows={4} value={aboutData.subtitle} onChange={e => setAboutData({ ...aboutData, subtitle: e.target.value })} />
+                  <textarea className="form-textarea" rows={4} value={aboutFormState.subtitle} onChange={e => setAboutFormState({ ...aboutFormState, subtitle: e.target.value })} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label className="form-label">Experience Badge Number</label>
-                    <input type="text" className="form-input" value={aboutData.experienceBadgeText} onChange={e => setAboutData({ ...aboutData, experienceBadgeText: e.target.value })} />
+                    <input type="text" className="form-input" value={aboutFormState.experienceBadgeText} onChange={e => setAboutFormState({ ...aboutFormState, experienceBadgeText: e.target.value })} />
                   </div>
                   <div>
                     <label className="form-label">Experience Badge Subtitle</label>
-                    <input type="text" className="form-input" value={aboutData.experienceBadgeSub} onChange={e => setAboutData({ ...aboutData, experienceBadgeSub: e.target.value })} />
+                    <input type="text" className="form-input" value={aboutFormState.experienceBadgeSub} onChange={e => setAboutFormState({ ...aboutFormState, experienceBadgeSub: e.target.value })} />
                   </div>
                 </div>
 
@@ -631,33 +608,33 @@ export default function AdminDashboardPage() {
                     <input 
                       type="file" 
                       accept="image/*" 
-                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setAboutData({ ...aboutData, image: url }))}
+                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setAboutFormState({ ...aboutFormState, image: url }))}
                       style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC' }}
                     />
-                    {aboutData.image && (
-                      <img src={aboutData.image} alt="About Preview" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} />
+                    {aboutFormState.image && (
+                      <img src={aboutFormState.image} alt="About Preview" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} />
                     )}
                   </div>
                 </div>
 
                 <div>
                   <label className="form-label">Feature Point #1 Title</label>
-                  <input type="text" className="form-input" value={aboutData.feature1Title} onChange={e => setAboutData({ ...aboutData, feature1Title: e.target.value })} />
+                  <input type="text" className="form-input" value={aboutFormState.feature1Title} onChange={e => setAboutFormState({ ...aboutFormState, feature1Title: e.target.value })} />
                 </div>
 
                 <div>
                   <label className="form-label">Feature Point #1 Description</label>
-                  <input type="text" className="form-input" value={aboutData.feature1Desc} onChange={e => setAboutData({ ...aboutData, feature1Desc: e.target.value })} />
+                  <input type="text" className="form-input" value={aboutFormState.feature1Desc} onChange={e => setAboutFormState({ ...aboutFormState, feature1Desc: e.target.value })} />
                 </div>
 
                 <div>
                   <label className="form-label">Feature Point #2 Title</label>
-                  <input type="text" className="form-input" value={aboutData.feature2Title} onChange={e => setAboutData({ ...aboutData, feature2Title: e.target.value })} />
+                  <input type="text" className="form-input" value={aboutFormState.feature2Title} onChange={e => setAboutFormState({ ...aboutFormState, feature2Title: e.target.value })} />
                 </div>
 
                 <div>
                   <label className="form-label">Feature Point #2 Description</label>
-                  <input type="text" className="form-input" value={aboutData.feature2Desc} onChange={e => setAboutData({ ...aboutData, feature2Desc: e.target.value })} />
+                  <input type="text" className="form-input" value={aboutFormState.feature2Desc} onChange={e => setAboutFormState({ ...aboutFormState, feature2Desc: e.target.value })} />
                 </div>
 
                 <button type="submit" className="btn btn-primary" style={{ marginTop: '10px' }}>

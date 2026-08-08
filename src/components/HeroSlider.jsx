@@ -1,23 +1,28 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { heroSlides } from '../data/heroSlides';
+import { useData } from '../context/DataContext';
 import HeroSlide from './HeroSlide';
 import SliderControls from './SliderControls';
 import SliderIndicators from './SliderIndicators';
 
 export default function HeroSlider({ onOpenQuote }) {
+  const { slides } = useData();
+  const heroSlides = slides && slides.length > 0 ? slides : [];
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef(null);
 
   const nextSlide = useCallback(() => {
+    if (heroSlides.length === 0) return;
     setCurrentIndex((prev) => (prev + 1) % heroSlides.length);
-  }, []);
+  }, [heroSlides.length]);
 
   const prevSlide = useCallback(() => {
+    if (heroSlides.length === 0) return;
     setCurrentIndex((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
-  }, []);
+  }, [heroSlides.length]);
 
   const goToSlide = (idx) => {
     setCurrentIndex(idx);
@@ -25,7 +30,7 @@ export default function HeroSlider({ onOpenQuote }) {
 
   // Autoplay Timer (5000ms)
   useEffect(() => {
-    if (!isPaused) {
+    if (!isPaused && heroSlides.length > 0) {
       timerRef.current = setInterval(() => {
         nextSlide();
       }, 5000);
@@ -33,71 +38,38 @@ export default function HeroSlider({ onOpenQuote }) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPaused, nextSlide]);
+  }, [isPaused, nextSlide, heroSlides.length]);
 
-  // Keyboard navigation (ArrowLeft & ArrowRight)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'ArrowLeft') {
-        prevSlide();
-      } else if (e.key === 'ArrowRight') {
-        nextSlide();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextSlide, prevSlide]);
+  if (heroSlides.length === 0) return null;
 
   return (
     <section 
-      className="hero-slider-section"
+      style={{ position: 'relative', width: '100%', overflow: 'hidden' }}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      aria-label="Construction Machinery Hero Carousel"
     >
-      {/* Slides Container */}
-      <div className="slider-track-container">
-        {heroSlides.map((slide, index) => (
-          <HeroSlide 
-            key={slide.id}
-            slide={slide}
-            isActive={index === currentIndex}
-            onOpenQuote={onOpenQuote}
-          />
-        ))}
-      </div>
+      {/* Active Slide Display */}
+      {heroSlides.map((slide, idx) => (
+        <div
+          key={slide.id || idx}
+          style={{
+            display: idx === currentIndex ? 'block' : 'none',
+            transition: 'opacity 0.6s ease-in-out'
+          }}
+        >
+          <HeroSlide slide={slide} onOpenQuote={onOpenQuote} />
+        </div>
+      ))}
 
-      {/* Slider Left & Right Nav Controls */}
+      {/* Prev / Next Arrows */}
       <SliderControls onPrev={prevSlide} onNext={nextSlide} />
 
-      {/* Slider Bottom Pagination Dots & Counter */}
+      {/* Pagination Dots & Numeric Counter */}
       <SliderIndicators 
         total={heroSlides.length} 
         current={currentIndex} 
         onSelect={goToSlide} 
       />
-
-      <style jsx>{`
-        .hero-slider-section {
-          position: relative;
-          width: 100%;
-          height: clamp(600px, 80vh, 740px);
-          overflow: hidden;
-          background-color: var(--dark);
-        }
-
-        .slider-track-container {
-          position: relative;
-          width: 100%;
-          height: 100%;
-        }
-
-        @media (max-width: 768px) {
-          .hero-slider-section {
-            height: 620px;
-          }
-        }
-      `}</style>
     </section>
   );
 }
