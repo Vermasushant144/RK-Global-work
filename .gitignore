@@ -1,11 +1,13 @@
-# Environment Variables & Secrets (All .env files)
+# Environment Variables & Secrets (All .env files & examples)
 .env
 .env*
 .env.local
+.env.local.example
 .env.development.local
 .env.test.local
 .env.production.local
 *.env
+*.example
 
 # Dependencies
 /node_modules
