@@ -67,21 +67,143 @@ export default function AdminDashboardPage() {
     reader.readAsDataURL(file);
   };
 
-  // 1. ENQUIRIES STATE
-  const [enquiries, setEnquiries] = useState([
-    { id: '1', name: 'Rajesh Kumar', phone: '+91 98123 45678', email: 'rajesh@infrabuild.com', state: 'Delhi NCR', category: 'Rebar Cutting & Bending Machines', source: 'Popup Modal', status: 'New', date: '2026-08-08 16:30' },
-    { id: '2', name: 'Sanjay Verma', phone: '+91 97654 32109', email: 'sanjay@vermaconstruction.com', state: 'Maharashtra', category: 'Concrete Mixers', source: 'Bulk Quote Form', status: 'In Contact', date: '2026-08-08 14:15' },
-    { id: '3', name: 'Vikram Singh', phone: '+91 98888 77766', email: 'vikram@larsen-infra.com', state: 'Gujarat', category: 'Road Rollers', source: 'Contact Form', status: 'Closed', date: '2026-08-07 11:20' }
-  ]);
+  // 1. ENQUIRIES STATE — Load from localStorage + Supabase
+  const [enquiries, setEnquiries] = useState([]);
+
+  useEffect(() => {
+    const loadEnquiries = async () => {
+      // Load from localStorage first (instant)
+      try {
+        const local = JSON.parse(localStorage.getItem('rk_enquiries') || '[]');
+        if (local.length > 0) setEnquiries(local);
+      } catch (e) {}
+
+      // Then fetch from Supabase (fresh data)
+      try {
+        const { data, error } = await supabase
+          .from('enquiries')
+          .select('*')
+          .order('createdAt', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          const mapped = data.map(d => ({
+            id: String(d.id),
+            name: d.name || '',
+            email: d.email || '',
+            phone: d.phone || '',
+            product: d.product || '',
+            message: d.message || '',
+            source: 'Form',
+            status: 'New',
+            date: d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : ''
+          }));
+          setEnquiries(mapped);
+          // Sync to localStorage
+          localStorage.setItem('rk_enquiries', JSON.stringify(mapped));
+        }
+      } catch (e) {}
+    };
+
+    loadEnquiries();
+  }, []);
 
   // Modal states for CRUD operations
-  const [slideModal, setSlideModal] = useState({ open: false, isEdit: false, data: { id: '', title: '', subtitle: '', badge: 'NEW ARRIVAL', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' } });
+  const emptySlideData = {
+    id: '',
+    title: '',
+    subtitle: '',
+    badge: 'OFFICIAL MANUFACTURER',
+    image: '/images/img/Untitled design - 2026-02-02T154951.040.webp',
+    feat1: 'ISO 9001 Certified',
+    feat2: 'Factory Direct Price',
+    feat3: '1-Year Warranty',
+    feat4: 'Pan-India Delivery',
+    btnPrimaryText: 'Request Quote Now',
+    btnSecondaryText: 'View 2026 Catalog'
+  };
 
-  const [productModal, setProductModal] = useState({
-    open: false,
-    isEdit: false,
-    data: { id: '', code: '', name: '', priceFormatted: '₹ 1,50,000', categoryName: 'Rebar Processing', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp', description: '' }
-  });
+  const [slideModal, setSlideModal] = useState({ open: false, isEdit: false, data: emptySlideData });
+
+  const openSlideModal = (slide = null) => {
+    if (!slide) {
+      setSlideModal({ open: true, isEdit: false, data: emptySlideData });
+    } else {
+      const feats = slide.features || [];
+      setSlideModal({
+        open: true,
+        isEdit: true,
+        data: {
+          ...emptySlideData,
+          ...slide,
+          title: slide.title || (slide.headingLine1 ? `${slide.headingLine1} ${slide.headingLine2 || ''}` : ''),
+          subtitle: slide.subtitle || slide.description || '',
+          badge: slide.badge || slide.eyebrow || 'OFFICIAL MANUFACTURER',
+          feat1: feats[0]?.label || feats[0]?.text || 'ISO 9001 Certified',
+          feat2: feats[1]?.label || feats[1]?.text || 'Factory Direct Price',
+          feat3: feats[2]?.label || feats[2]?.text || '1-Year Warranty',
+          feat4: feats[3]?.label || feats[3]?.text || 'Pan-India Delivery',
+          btnPrimaryText: slide.btnPrimaryText || 'Request Quote Now',
+          btnSecondaryText: slide.btnSecondaryText || 'View 2026 Catalog'
+        }
+      });
+    }
+  };
+
+  const emptyProductData = {
+    id: '',
+    code: '',
+    name: '',
+    categoryName: 'Rebar Processing',
+    category: 'cutting',
+    priceFormatted: '₹ 1,50,000',
+    priceNum: 150000,
+    shortDescription: '',
+    description: '',
+    image: '/images/img/Untitled design - 2026-02-02T154951.040.webp',
+    gallery: ['/images/img/Untitled design - 2026-02-02T154951.040.webp'],
+    specsText: 'Single wire bending: 5-13mm\nDouble wire bending: 5-10mm\nVoltage: 380V-50Hz-3P\nMachine Net Weight: 2300kg',
+    featuresText: 'High-speed CNC servo system\nIntegrated automatic wire feeding & straightening\nPrecision length tolerance ±1mm',
+    minOrderQty: '1 Piece / Pieces',
+    supplyAbility: '5 Piece Per Day',
+    deliveryTime: '1 - 3 Days'
+  };
+
+  const [productModal, setProductModal] = useState({ open: false, isEdit: false, data: emptyProductData });
+
+  const openProductModal = (prod = null) => {
+    if (!prod) {
+      setProductModal({ open: true, isEdit: false, data: emptyProductData });
+    } else {
+      let specsStr = '';
+      if (prod.technicalSpecs && typeof prod.technicalSpecs === 'object') {
+        specsStr = Object.entries(prod.technicalSpecs).map(([k, v]) => `${k}: ${v}`).join('\n');
+      } else if (prod.keySpecs && Array.isArray(prod.keySpecs)) {
+        specsStr = prod.keySpecs.map(s => `${s.label}: ${s.value}`).join('\n');
+      }
+
+      let featuresStr = '';
+      if (prod.features && Array.isArray(prod.features)) {
+        featuresStr = prod.features.map(f => typeof f === 'string' ? f : f.label || f.text || '').join('\n');
+      }
+
+      setProductModal({
+        open: true,
+        isEdit: true,
+        data: {
+          ...emptyProductData,
+          ...prod,
+          categoryName: prod.categoryName || prod.category || 'Rebar Processing',
+          shortDescription: prod.shortDescription || prod.description || '',
+          description: prod.description || prod.shortDescription || '',
+          specsText: specsStr || 'Single wire bending: 5-13mm\nVoltage: 380V-50Hz-3P',
+          featuresText: featuresStr || 'Heavy duty construction machine\n1-Year Comprehensive Warranty',
+          minOrderQty: prod.minOrderQty || '1 Piece / Pieces',
+          supplyAbility: prod.supplyAbility || '5 Piece Per Day',
+          deliveryTime: prod.deliveryTime || '1 - 3 Days'
+        }
+      });
+    }
+  };
 
   const [blogModal, setBlogModal] = useState({
     open: false,
@@ -145,14 +267,28 @@ export default function AdminDashboardPage() {
   // Slider Handlers
   const handleSaveSlide = async (e) => {
     e.preventDefault();
+    const slideToSave = {
+      ...slideModal.data,
+      headingLine1: slideModal.data.title,
+      headingLine2: '',
+      eyebrow: slideModal.data.badge,
+      description: slideModal.data.subtitle,
+      features: [
+        { icon: 'ShieldCheck', label: slideModal.data.feat1 || 'ISO 9001 Certified' },
+        { icon: 'Award', label: slideModal.data.feat2 || 'Factory Direct Price' },
+        { icon: 'Wrench', label: slideModal.data.feat3 || '1-Year Warranty' },
+        { icon: 'CheckCircle2', label: slideModal.data.feat4 || 'Pan-India Delivery' }
+      ]
+    };
+
     if (slideModal.isEdit) {
-      updateSlide(slideModal.data);
+      updateSlide(slideToSave);
       showNotify('Hero slide updated & saved live to website!');
     } else {
-      addSlide(slideModal.data);
+      addSlide(slideToSave);
       showNotify('New slide added live to website slider!');
     }
-    setSlideModal({ open: false, isEdit: false, data: { id: '', title: '', subtitle: '', badge: 'NEW ARRIVAL', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' } });
+    setSlideModal({ open: false, isEdit: false, data: emptySlideData });
   };
   const handleDeleteSlide = async (id) => {
     if (confirm('Delete this slide from homepage carousel?')) {
@@ -164,14 +300,58 @@ export default function AdminDashboardPage() {
   // Product Handlers
   const handleSaveProduct = async (e) => {
     e.preventDefault();
+
+    // Parse technicalSpecs object & keySpecs array from specsText
+    const technicalSpecs = {};
+    const keySpecs = [];
+    if (productModal.data.specsText) {
+      const lines = productModal.data.specsText.split('\n');
+      lines.forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const key = parts[0].trim();
+          const val = parts.slice(1).join(':').trim();
+          if (key && val) {
+            technicalSpecs[key] = val;
+            keySpecs.push({ label: key, value: val });
+          }
+        }
+      });
+    }
+
+    // Parse features list from featuresText
+    const featuresList = (productModal.data.featuresText || '')
+      .split('\n')
+      .map(f => f.trim())
+      .filter(Boolean);
+
+    // Numeric price extraction
+    const rawPrice = String(productModal.data.priceFormatted || '').replace(/[^0-9]/g, '');
+    const priceNum = rawPrice ? parseInt(rawPrice, 10) : 150000;
+
+    const prodId = productModal.data.id || (productModal.data.code ? productModal.data.code.toLowerCase().replace(/[^a-z0-9]+/g, '-') : Date.now().toString());
+
+    const productToSave = {
+      ...productModal.data,
+      id: prodId,
+      code: productModal.data.code || 'RK-NEW',
+      category: (productModal.data.categoryName || 'Rebar Processing').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      categoryName: productModal.data.categoryName || 'Rebar Processing',
+      priceNum: priceNum,
+      gallery: [productModal.data.image],
+      technicalSpecs: Object.keys(technicalSpecs).length > 0 ? technicalSpecs : { "Standard": "Heavy Duty Construction" },
+      keySpecs: keySpecs.length > 0 ? keySpecs : [{ label: "Warranty", value: "1 Year Manufacturer Warranty" }],
+      features: featuresList.length > 0 ? featuresList : ["Heavy Duty Steel Frame", "ISO 9001 Quality Control"],
+    };
+
     if (productModal.isEdit) {
-      updateProduct(productModal.data);
+      updateProduct(productToSave);
       showNotify('Product updated & saved live to website!');
     } else {
-      addProduct(productModal.data);
+      addProduct(productToSave);
       showNotify('New product saved live to catalog!');
     }
-    setProductModal({ open: false, isEdit: false, data: { id: '', code: '', name: '', priceFormatted: '₹ 1,50,000', categoryName: 'Rebar Processing', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp', description: '' } });
+    setProductModal({ open: false, isEdit: false, data: emptyProductData });
   };
   const handleDeleteProduct = async (id) => {
     if (confirm('Delete this product from catalog?')) {
@@ -415,7 +595,7 @@ export default function AdminDashboardPage() {
               </h2>
               <button 
                 type="button" 
-                onClick={() => setSlideModal({ open: true, isEdit: false, data: { id: '', title: '', subtitle: '', badge: 'NEW ARRIVAL', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' } })}
+                onClick={() => openSlideModal()}
                 style={{
                   backgroundColor: '#F47B20',
                   color: '#FFFFFF',
@@ -438,14 +618,14 @@ export default function AdminDashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {slides.map((slide, idx) => (
                 <div key={slide.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                  <img src={slide.image} alt={slide.title} style={{ width: '110px', height: '75px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+                  <img src={slide.image} alt={slide.title || 'Slide'} style={{ width: '110px', height: '75px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
                   <div style={{ flexGrow: 1 }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#F47B20', textTransform: 'uppercase' }}>Slide #{idx + 1} • {slide.badge}</div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1E293B', margin: '4px 0' }}>{slide.title}</h3>
-                    <p style={{ fontSize: '0.85rem', color: '#64748B' }}>{slide.subtitle}</p>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#F47B20', textTransform: 'uppercase' }}>Slide #{idx + 1} • {slide.badge || slide.eyebrow}</div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1E293B', margin: '4px 0' }}>{slide.title || slide.headingLine1}</h3>
+                    <p style={{ fontSize: '0.85rem', color: '#64748B' }}>{slide.subtitle || slide.description}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="button" onClick={() => setSlideModal({ open: true, isEdit: true, data: slide })} style={{ backgroundColor: '#F1F5F9', color: '#1E293B', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button type="button" onClick={() => openSlideModal(slide)} style={{ backgroundColor: '#F1F5F9', color: '#1E293B', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Edit3 size={14} /> Edit
                     </button>
                     <button type="button" onClick={() => handleDeleteSlide(slide.id)} style={{ backgroundColor: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}>
@@ -467,7 +647,7 @@ export default function AdminDashboardPage() {
               </h2>
               <button 
                 type="button" 
-                onClick={() => setProductModal({ open: true, isEdit: false, data: { id: '', code: 'RK-NEW', name: '', priceFormatted: '₹ 2,50,000', categoryName: 'Rebar Processing', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp', description: 'Heavy duty construction machine.' } })}
+                onClick={() => openProductModal()}
                 style={{
                   backgroundColor: '#F47B20',
                   color: '#FFFFFF',
@@ -498,7 +678,7 @@ export default function AdminDashboardPage() {
                   <div style={{ fontSize: '0.9rem', color: '#16A34A', fontWeight: 800, marginBottom: '16px' }}>{prod.priceFormatted}</div>
                   
                   <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-                    <button type="button" onClick={() => setProductModal({ open: true, isEdit: true, data: prod })} style={{ flex: 1, backgroundColor: '#F1F5F9', color: '#1E293B', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                    <button type="button" onClick={() => openProductModal(prod)} style={{ flex: 1, backgroundColor: '#F1F5F9', color: '#1E293B', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                       <Edit3 size={14} /> Edit
                     </button>
                     <button type="button" onClick={() => handleDeleteProduct(prod.id)} style={{ backgroundColor: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}>
@@ -715,43 +895,83 @@ export default function AdminDashboardPage() {
         {/* ------------------- MODAL: HERO SLIDE (ADD / EDIT) ------------------- */}
         {slideModal.open && (
           <div className="modal-backdrop">
-            <div className="modal-content-box" style={{ maxWidth: '520px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E293B' }}>{slideModal.isEdit ? 'Edit Hero Slide' : 'Add New Hero Slide'}</h3>
+            <div className="modal-content-box" style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E293B' }}>{slideModal.isEdit ? 'Edit Hero Slide Content' : 'Add New Hero Slide'}</h3>
                 <button type="button" onClick={() => setSlideModal({ ...slideModal, open: false })} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><X size={20} /></button>
               </div>
+
               <form onSubmit={handleSaveSlide} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label className="form-label">Slide Title *</label>
-                  <input type="text" className="form-input" required value={slideModal.data.title} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, title: e.target.value } })} />
+                  <label className="form-label">Eyebrow Badge (Orange Tag) *</label>
+                  <input type="text" className="form-input" placeholder="e.g. OFFICIAL MANUFACTURER" required value={slideModal.data.badge} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, badge: e.target.value } })} />
                 </div>
+
                 <div>
-                  <label className="form-label">Subtitle</label>
-                  <input type="text" className="form-input" value={slideModal.data.subtitle} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, subtitle: e.target.value } })} />
+                  <label className="form-label">Main Headline / Slide Title *</label>
+                  <input type="text" className="form-input" placeholder="e.g. Heavy Duty Rebar Cutting & Bending Machines" required value={slideModal.data.title} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, title: e.target.value } })} />
                 </div>
+
                 <div>
-                  <label className="form-label">Eyebrow Badge</label>
-                  <input type="text" className="form-input" value={slideModal.data.badge} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, badge: e.target.value } })} />
+                  <label className="form-label">Description / Subtitle *</label>
+                  <textarea className="form-textarea" rows={2} placeholder="e.g. High precision hydraulic benders for infrastructure contractors." value={slideModal.data.subtitle} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, subtitle: e.target.value } })} />
                 </div>
-                
-                {/* Choose File Picker */}
+
+                {/* 4 Feature Bullet Points */}
+                <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <label className="form-label" style={{ fontWeight: 800, color: '#F47B20', marginBottom: '8px', display: 'block' }}>
+                    4 Feature Bullet Points (Visible on Slide)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Feature 1</label>
+                      <input type="text" className="form-input" value={slideModal.data.feat1} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, feat1: e.target.value } })} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Feature 2</label>
+                      <input type="text" className="form-input" value={slideModal.data.feat2} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, feat2: e.target.value } })} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Feature 3</label>
+                      <input type="text" className="form-input" value={slideModal.data.feat3} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, feat3: e.target.value } })} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Feature 4</label>
+                      <input type="text" className="form-input" value={slideModal.data.feat4} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, feat4: e.target.value } })} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Button Texts */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label className="form-label">Primary Button Text</label>
+                    <input type="text" className="form-input" value={slideModal.data.btnPrimaryText} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, btnPrimaryText: e.target.value } })} />
+                  </div>
+                  <div>
+                    <label className="form-label">Secondary Button Text</label>
+                    <input type="text" className="form-input" value={slideModal.data.btnSecondaryText} onChange={e => setSlideModal({ ...slideModal, data: { ...slideModal.data, btnSecondaryText: e.target.value } })} />
+                  </div>
+                </div>
+
+                {/* Image Picker */}
                 <div>
-                  <label className="form-label">Choose Slide Image File</label>
+                  <label className="form-label">Choose Slide Background Image</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <input 
                       type="file" 
                       accept="image/*" 
                       onChange={(e) => handleFileChoose(e.target.files[0], (url) => setSlideModal({ ...slideModal, data: { ...slideModal.data, image: url } }))}
-                      style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC' }}
+                      style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC', width: '100%' }}
                     />
                     {slideModal.data.image && (
-                      <img src={slideModal.data.image} alt="Preview" style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} />
+                      <img src={slideModal.data.image} alt="Preview" style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0', flexShrink: 0 }} />
                     )}
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>{slideModal.isEdit ? 'Update Slide' : 'Add Slide'}</button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>{slideModal.isEdit ? 'Update Slide Live' : 'Add Slide Live'}</button>
                   <button type="button" className="btn btn-white" style={{ flex: 1 }} onClick={() => setSlideModal({ ...slideModal, open: false })}>Cancel</button>
                 </div>
               </form>
@@ -762,32 +982,112 @@ export default function AdminDashboardPage() {
         {/* ------------------- MODAL: PRODUCT (ADD / EDIT) ------------------- */}
         {productModal.open && (
           <div className="modal-backdrop">
-            <div className="modal-content-box" style={{ maxWidth: '560px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E293B' }}>{productModal.isEdit ? 'Edit Product Details' : 'Add New Product'}</h3>
+            <div className="modal-content-box" style={{ maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E293B' }}>{productModal.isEdit ? 'Edit Product Details' : 'Add New Product to Catalog'}</h3>
                 <button type="button" onClick={() => setProductModal({ ...productModal, open: false })} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><X size={20} /></button>
               </div>
+
               <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                
+                {/* Code & Category Select Dropdown */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '14px' }}>
                   <div>
                     <label className="form-label">Product Code *</label>
-                    <input type="text" className="form-input" required value={productModal.data.code} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, code: e.target.value } })} />
+                    <input type="text" className="form-input" placeholder="e.g. D4, GX6-25, ZLP800" required value={productModal.data.code} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, code: e.target.value } })} />
                   </div>
                   <div>
-                    <label className="form-label">Category Name</label>
-                    <input type="text" className="form-input" value={productModal.data.categoryName} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, categoryName: e.target.value } })} />
+                    <label className="form-label">Category (Select Dropdown) *</label>
+                    <select 
+                      className="form-select" 
+                      required 
+                      value={productModal.data.categoryName} 
+                      onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, categoryName: e.target.value } })}
+                    >
+                      {[
+                        'Rebar Processing',
+                        'Material Handling',
+                        'Scarifier PI250',
+                        'Rebar Bending Machine',
+                        'Walk Behind Rollers',
+                        'Bar Decoiling Machine',
+                        'Suspended Platform',
+                        'TMT Ring Making Machine',
+                        'Concrete Mixers',
+                        'Rebar Spiral Bending Machine',
+                        'Rebar Threading Machine',
+                        'Iron Worker',
+                        'Concrete Grinding Machine',
+                        'Mini Excavators',
+                        'Power Trowel',
+                        'Flattening Machine',
+                        'Ride on Rollers'
+                      ].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-                <div>
-                  <label className="form-label">Product Name *</label>
-                  <input type="text" className="form-input" required value={productModal.data.name} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, name: e.target.value } })} />
+
+                {/* Product Name & Display Price */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label className="form-label">Product Name *</label>
+                    <input type="text" className="form-input" placeholder="e.g. Automatic Rebar Stirrup Bender Machine - D4" required value={productModal.data.name} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, name: e.target.value } })} />
+                  </div>
+                  <div>
+                    <label className="form-label">Price (Formatted) *</label>
+                    <input type="text" className="form-input" placeholder="e.g. ₹ 36,80,000" required value={productModal.data.priceFormatted} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, priceFormatted: e.target.value } })} />
+                  </div>
                 </div>
+
+                {/* Short Description */}
                 <div>
-                  <label className="form-label">Display Price *</label>
-                  <input type="text" className="form-input" required value={productModal.data.priceFormatted} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, priceFormatted: e.target.value } })} />
+                  <label className="form-label">Short Description (Catalog Summary)</label>
+                  <textarea className="form-textarea" rows={2} placeholder="Brief summary of the machine..." value={productModal.data.shortDescription} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, shortDescription: e.target.value } })} />
                 </div>
-                
-                {/* Choose File Picker */}
+
+                {/* Full Description */}
+                <div>
+                  <label className="form-label">Full Product Description (Detail View)</label>
+                  <textarea className="form-textarea" rows={3} placeholder="Detailed specs description, applications, and engineering build..." value={productModal.data.description} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, description: e.target.value } })} />
+                </div>
+
+                {/* Technical Specs Textarea */}
+                <div>
+                  <label className="form-label">Technical Specifications (Format: Spec Name: Value)</label>
+                  <div style={{ fontSize: '0.75rem', color: '#64748B', marginBottom: '4px' }}>Enter 1 spec per line e.g. "Voltage: 380V-50Hz-3P" or "Machine Net Weight: 2300kg"</div>
+                  <textarea className="form-textarea" rows={4} placeholder="Single wire bending: 5-13mm&#10;Double wire bending: 5-10mm&#10;Voltage: 380V-50Hz-3P&#10;Machine Net Weight: 2300kg" value={productModal.data.specsText} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, specsText: e.target.value } })} />
+                </div>
+
+                {/* Key Features List Textarea */}
+                <div>
+                  <label className="form-label">Key Features & Highlights (1 Feature Per Line)</label>
+                  <textarea className="form-textarea" rows={3} placeholder="High-speed CNC servo system&#10;Integrated automatic wire feeding&#10;Precision length tolerance ±1mm" value={productModal.data.featuresText} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, featuresText: e.target.value } })} />
+                </div>
+
+                {/* Trade Information Grid */}
+                <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <label className="form-label" style={{ fontWeight: 800, color: '#F47B20', marginBottom: '8px', display: 'block' }}>
+                    Trade & Delivery Information
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Min Order Qty</label>
+                      <input type="text" className="form-input" placeholder="1 Piece / Pieces" value={productModal.data.minOrderQty} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, minOrderQty: e.target.value } })} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Supply Ability</label>
+                      <input type="text" className="form-input" placeholder="5 Piece Per Day" value={productModal.data.supplyAbility} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, supplyAbility: e.target.value } })} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B' }}>Delivery Time</label>
+                      <input type="text" className="form-input" placeholder="1 - 3 Days" value={productModal.data.deliveryTime} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, deliveryTime: e.target.value } })} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Choose Product Image File Picker & Live Preview */}
                 <div>
                   <label className="form-label">Choose Product Image File</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -795,20 +1095,16 @@ export default function AdminDashboardPage() {
                       type="file" 
                       accept="image/*" 
                       onChange={(e) => handleFileChoose(e.target.files[0], (url) => setProductModal({ ...productModal, data: { ...productModal.data, image: url } }))}
-                      style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC' }}
+                      style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC', width: '100%' }}
                     />
                     {productModal.data.image && (
-                      <img src={productModal.data.image} alt="Preview" style={{ width: '50px', height: '50px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #E2E8F0', padding: '2px', backgroundColor: '#FFFFFF' }} />
+                      <img src={productModal.data.image} alt="Preview" style={{ width: '50px', height: '50px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #E2E8F0', padding: '2px', backgroundColor: '#FFFFFF', flexShrink: 0 }} />
                     )}
                   </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Description</label>
-                  <textarea className="form-textarea" rows={3} value={productModal.data.description || ''} onChange={e => setProductModal({ ...productModal, data: { ...productModal.data, description: e.target.value } })} />
-                </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>{productModal.isEdit ? 'Update Product' : 'Save Product'}</button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>{productModal.isEdit ? 'Update Product Live' : 'Save Product Live'}</button>
                   <button type="button" className="btn btn-white" style={{ flex: 1 }} onClick={() => setProductModal({ ...productModal, open: false })}>Cancel</button>
                 </div>
               </form>

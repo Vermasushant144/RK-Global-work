@@ -35,11 +35,11 @@ export default function LoginPage() {
         <div style={{ maxWidth: '420px', margin: '0 auto', width: '100%' }}>
           
           <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: '#1E293B', marginBottom: '8px', letterSpacing: '-0.02em' }}>
-            Login
+            🔐 Admin Login
           </h1>
 
           <p style={{ fontSize: '0.95rem', color: '#64748B', marginBottom: '32px' }}>
-            Welcome back! Please enter your details.
+            Admin credentials se login karo to access Admin Panel.
           </p>
 
           {authError && (

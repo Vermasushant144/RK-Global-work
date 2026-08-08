@@ -292,7 +292,7 @@ export default function ProductDetailPage() {
                     {Object.entries(product.technicalSpecs || {
                       'Category': product.categoryName || 'Construction Equipment',
                       'Price': product.priceFormatted || 'Ex-Factory Price',
-                      'Warranty': '24 Months OEM Warranty',
+                      'Warranty': product.warranty || '24 Months OEM Warranty',
                       'Manufacturer': 'R.K. Global Engineering'
                     }).map(([key, val]) => (
                       <tr key={key}>
@@ -369,7 +369,7 @@ export default function ProductDetailPage() {
                       <td style={{ width: '25%', color: '#64748B', fontWeight: 600 }}>Price</td>
                       <td style={{ width: '25%', fontWeight: 700, color: '#16A34A' }}>{product.priceFormatted} / Piece</td>
                       <td style={{ width: '25%', color: '#64748B', fontWeight: 600 }}>Minimum Order Quantity</td>
-                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>1 Piece / Pieces</td>
+                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>{product.minOrderQty || '1 Piece / Pieces'}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -382,15 +382,15 @@ export default function ProductDetailPage() {
                   <tbody>
                     <tr>
                       <td style={{ width: '25%', color: '#64748B', fontWeight: 600 }}>Usage & Applications</td>
-                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>Industrial</td>
+                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>{product.usageApplications || 'Industrial'}</td>
                       <td style={{ width: '25%', color: '#64748B', fontWeight: 600 }}>Product Type</td>
                       <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>{product.name}</td>
                     </tr>
                     <tr>
                       <td style={{ color: '#64748B', fontWeight: 600 }}>Operating Type</td>
-                      <td style={{ fontWeight: 700, color: '#1E293B' }}>Semi Automatic / Automatic</td>
+                      <td style={{ fontWeight: 700, color: '#1E293B' }}>{product.operatingType || 'Semi Automatic / Automatic'}</td>
                       <td style={{ color: '#64748B', fontWeight: 600 }}>Warranty</td>
-                      <td style={{ fontWeight: 700, color: '#16A34A' }}>24 Months OEM Warranty</td>
+                      <td style={{ fontWeight: 700, color: '#16A34A' }}>{product.warranty || '24 Months OEM Warranty'}</td>
                     </tr>
                     {Object.entries(product.technicalSpecs || {}).map(([k, v]) => (
                       <tr key={k}>
@@ -409,9 +409,9 @@ export default function ProductDetailPage() {
                   <tbody>
                     <tr>
                       <td style={{ width: '25%', color: '#64748B', fontWeight: 600 }}>Supply Ability</td>
-                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>5 Piece Per Day</td>
+                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>{product.supplyAbility || '5 Piece Per Day'}</td>
                       <td style={{ width: '25%', color: '#64748B', fontWeight: 600 }}>Delivery Time</td>
-                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>1 - 3 Days</td>
+                      <td style={{ width: '25%', fontWeight: 700, color: '#1E293B' }}>{product.deliveryTime || '1 - 3 Days'}</td>
                     </tr>
                   </tbody>
                 </table>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, CheckCircle, Send, ShieldCheck } from 'lucide-react';
 import { products } from '../data/products';
+import { supabase } from '../lib/supabaseClient';
 
 export default function QuoteModal({ isOpen, onClose, selectedProduct, onToast }) {
   const [formData, setFormData] = useState({
@@ -20,8 +21,42 @@ export default function QuoteModal({ isOpen, onClose, selectedProduct, onToast }
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const enquiry = {
+      id: Date.now().toString(),
+      name: formData.name,
+      company: formData.company,
+      email: formData.email,
+      phone: formData.phone,
+      product: formData.product,
+      quantity: formData.quantity,
+      location: formData.location,
+      message: formData.notes,
+      source: 'Quote Modal',
+      status: 'New',
+      date: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+    };
+
+    // Save to localStorage
+    try {
+      const existing = JSON.parse(localStorage.getItem('rk_enquiries') || '[]');
+      existing.unshift(enquiry);
+      localStorage.setItem('rk_enquiries', JSON.stringify(existing));
+    } catch (err) {}
+
+    // Save to Supabase
+    try {
+      await supabase.from('enquiries').insert({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        product: formData.product,
+        message: `Company: ${formData.company} | Qty: ${formData.quantity} | Location: ${formData.location} | Notes: ${formData.notes}`,
+      });
+    } catch (err) {}
+
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);

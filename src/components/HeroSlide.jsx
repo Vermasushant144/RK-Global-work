@@ -139,12 +139,12 @@ export default function HeroSlide({ slide, isActive, onOpenQuote }) {
               onClick={onOpenQuote}
               style={{ padding: '14px 28px', fontSize: '0.95rem' }}
             >
-              <span>Request Quote Now</span>
+              <span>{slide.btnPrimaryText || 'Request Quote Now'}</span>
               <ArrowRight size={18} />
             </button>
 
             <Link href="/products" className="btn btn-outline" style={{ borderColor: '#FFFFFF', color: '#FFFFFF', padding: '14px 28px', fontSize: '0.95rem' }}>
-              <span>View 2026 Catalog</span>
+              <span>{slide.btnSecondaryText || 'View 2026 Catalog'}</span>
               <ArrowRight size={18} />
             </Link>
           </div>

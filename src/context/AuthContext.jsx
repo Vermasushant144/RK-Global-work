@@ -64,37 +64,38 @@ export function AuthProvider({ children }) {
 
     checkSession();
 
-    // Listen to Supabase auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const u = session.user;
-        const adminFlag = u.email?.toLowerCase().includes('admin') || u.user_metadata?.isAdmin === true;
-        setIsLoggedIn(true);
-        setIsAdmin(adminFlag);
-        setUser({ email: u.email, fullName: u.user_metadata?.full_name || '', isAdmin: adminFlag, id: u.id });
-      } else if (_event === 'SIGNED_OUT') {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
-        setUser(null);
+    // Listen to Supabase auth state changes (safe guard)
+    let unsubscribe = () => {};
+    try {
+      if (supabase?.auth?.onAuthStateChange) {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (session?.user) {
+            const u = session.user;
+            const adminFlag = u.email?.toLowerCase().includes('admin') || u.user_metadata?.isAdmin === true;
+            setIsLoggedIn(true);
+            setIsAdmin(adminFlag);
+            setUser({ email: u.email, fullName: u.user_metadata?.full_name || '', isAdmin: adminFlag, id: u.id });
+          } else if (_event === 'SIGNED_OUT') {
+            setIsLoggedIn(false);
+            setIsAdmin(false);
+            setUser(null);
+          }
+        });
+        unsubscribe = () => subscription?.unsubscribe?.();
       }
-    });
+    } catch (e) {}
 
-    return () => subscription?.unsubscribe?.();
+    return () => unsubscribe();
   }, []);
 
-  // Route protection
+  // Route protection — ONLY protect /admin route
   useEffect(() => {
     if (loading) return;
-    const isPublicRoute = pathname === '/login' || pathname === '/register';
-    if (!isLoggedIn && !isPublicRoute) {
-      router.push('/login');
-      return;
-    }
+    // If non-admin tries to visit /admin → redirect to home
     if (pathname.startsWith('/admin') && !isAdmin) {
       router.push('/');
-      return;
     }
-  }, [isLoggedIn, isAdmin, pathname, loading, router]);
+  }, [isAdmin, pathname, loading, router]);
 
   // ── LOGIN ──────────────────────────────────────────────
   const login = async (email, password) => {

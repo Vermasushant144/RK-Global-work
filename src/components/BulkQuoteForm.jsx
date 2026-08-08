@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { categories } from '../data/categories';
 import { CheckCircle } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 export default function BulkQuoteForm() {
   const [submitted, setSubmitted] = useState(false);
@@ -14,8 +15,41 @@ export default function BulkQuoteForm() {
     mobile: ''
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const enquiry = {
+      id: Date.now().toString(),
+      name: formData.contactPerson,
+      company: formData.companyName,
+      email: formData.email,
+      phone: formData.mobile,
+      category: formData.category,
+      product: formData.category,
+      message: '',
+      source: 'Bulk Quote Form',
+      status: 'New',
+      date: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+    };
+
+    // Save to localStorage
+    try {
+      const existing = JSON.parse(localStorage.getItem('rk_enquiries') || '[]');
+      existing.unshift(enquiry);
+      localStorage.setItem('rk_enquiries', JSON.stringify(existing));
+    } catch (err) {}
+
+    // Save to Supabase
+    try {
+      await supabase.from('enquiries').insert({
+        name: formData.contactPerson,
+        email: formData.email,
+        phone: formData.mobile,
+        product: formData.category,
+        message: `Company: ${formData.companyName}`,
+      });
+    } catch (err) {}
+
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 5000);
   };
@@ -155,7 +189,7 @@ export default function BulkQuoteForm() {
 
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bulk-form-input {
           width: 100%;
           padding: 12px 16px;
@@ -185,7 +219,7 @@ export default function BulkQuoteForm() {
             grid-template-columns: 1fr !important;
           }
         }
-      `}</style>
+      `}} />
     </section>
   );
 }
