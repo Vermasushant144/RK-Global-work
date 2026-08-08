@@ -7,9 +7,57 @@ import { insights as defaultBlogs } from '../data/insights';
 import { supabase } from '../lib/supabaseClient';
 
 const defaultSlides = [
-  { id: '1', title: 'Heavy Duty Rebar Cutting & Bending Machines', subtitle: 'High precision hydraulic benders for infrastructure contractors.', badge: 'OFFICIAL MANUFACTURER', image: '/images/img/Untitled design - 2026-02-02T154951.040.webp' },
-  { id: '2', title: 'Industrial Grade Concrete Mixers & Batching', subtitle: 'Ex-factory prices across India with site warranty.', badge: 'BESTSELLER 2026', image: '/images/img/CONCRETE MIXER MACHINE WITH LIFT.webp' },
-  { id: '3', title: 'High Rise Suspended Platform Hoists', subtitle: 'ZLP800 800kg load rating with safety lock mechanism.', badge: 'PAN INDIA DELIVERY', image: '/images/img/SUSPENDED PLATFORM.webp' }
+  { 
+    id: '1', 
+    title: 'Heavy Duty Rebar Cutting & Bending Machines', 
+    subtitle: 'High precision hydraulic benders for infrastructure contractors.', 
+    badge: 'OFFICIAL MANUFACTURER', 
+    image: '/images/img/Untitled design - 2026-02-02T154951.040.webp',
+    eyebrow: 'OFFICIAL MANUFACTURER',
+    headingLine1: 'Heavy Duty Rebar Cutting',
+    headingLine2: '& Bending Machines',
+    description: 'High precision hydraulic benders for infrastructure contractors.',
+    features: [
+      { icon: 'ShieldCheck', label: 'ISO 9001 Certified' },
+      { icon: 'Award', label: 'Factory Direct Price' },
+      { icon: 'Wrench', label: '1-Year Warranty' },
+      { icon: 'CheckCircle2', label: 'Pan-India Delivery' }
+    ]
+  },
+  { 
+    id: '2', 
+    title: 'Industrial Grade Concrete Mixers & Batching', 
+    subtitle: 'Ex-factory prices across India with site warranty.', 
+    badge: 'BESTSELLER 2026', 
+    image: '/images/img/CONCRETE MIXER MACHINE WITH LIFT.webp',
+    eyebrow: 'BESTSELLER 2026',
+    headingLine1: 'Industrial Grade Concrete Mixers',
+    headingLine2: '& Batching Machinery',
+    description: 'Ex-factory prices across India with site warranty.',
+    features: [
+      { icon: 'ShieldCheck', label: 'High Batch Capacity' },
+      { icon: 'Award', label: 'Heavy Steel Drum' },
+      { icon: 'Wrench', label: 'Site Support' },
+      { icon: 'CheckCircle2', label: 'Ex-Factory Price' }
+    ]
+  },
+  { 
+    id: '3', 
+    title: 'High Rise Suspended Platform Hoists', 
+    subtitle: 'ZLP800 800kg load rating with safety lock mechanism.', 
+    badge: 'PAN INDIA DELIVERY', 
+    image: '/images/img/SUSPENDED PLATFORM.webp',
+    eyebrow: 'PAN INDIA DELIVERY',
+    headingLine1: 'High Rise Suspended',
+    headingLine2: 'Platform Hoists (ZLP800)',
+    description: 'ZLP800 800kg load rating with safety lock mechanism.',
+    features: [
+      { icon: 'ShieldCheck', label: 'ZLP800 Standard' },
+      { icon: 'Award', label: '800kg Load Rating' },
+      { icon: 'Wrench', label: 'Safety Lock Mechanism' },
+      { icon: 'CheckCircle2', label: 'Pan India Onsite Service' }
+    ]
+  }
 ];
 
 const defaultAboutData = {
@@ -50,6 +98,24 @@ export function DataProvider({ children }) {
   const [blogs, setBlogs] = useState(defaultBlogs);
   const [aboutData, setAboutData] = useState(defaultAboutData);
 
+  const normalizeSlide = (s) => ({
+    id: s.id || Date.now().toString(),
+    title: s.title || 'Heavy Duty Construction Machinery',
+    subtitle: s.subtitle || 'High precision B2B machinery manufactured in India.',
+    badge: s.badge || 'OFFICIAL MANUFACTURER',
+    image: s.image || '/images/img/Untitled design - 2026-02-02T154951.040.webp',
+    eyebrow: s.badge || s.eyebrow || 'OFFICIAL MANUFACTURER',
+    headingLine1: s.title || 'Heavy Duty Construction Machinery',
+    headingLine2: '',
+    description: s.subtitle || 'High precision B2B machinery manufactured in India.',
+    features: s.features && Array.isArray(s.features) ? s.features : [
+      { icon: 'ShieldCheck', label: 'ISO 9001 Certified' },
+      { icon: 'Award', label: 'Factory Direct Price' },
+      { icon: 'Wrench', label: '1-Year Warranty' },
+      { icon: 'CheckCircle2', label: 'Pan-India Delivery' }
+    ]
+  });
+
   // Synchronize on initial mount from localStorage / Supabase
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -58,10 +124,23 @@ export function DataProvider({ children }) {
       const storedBlogs = localStorage.getItem('rk_cms_blogs');
       const storedAbout = localStorage.getItem('rk_cms_about');
 
-      if (storedProds) setProducts(JSON.parse(storedProds));
-      if (storedSlides) setSlides(JSON.parse(storedSlides));
-      if (storedBlogs) setBlogs(JSON.parse(storedBlogs));
-      if (storedAbout) setAboutData(JSON.parse(storedAbout));
+      if (storedProds) {
+        try { setProducts(JSON.parse(storedProds)); } catch (e) {}
+      }
+      if (storedSlides) {
+        try {
+          const parsed = JSON.parse(storedSlides);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSlides(parsed.map(normalizeSlide));
+          }
+        } catch (e) {}
+      }
+      if (storedBlogs) {
+        try { setBlogs(JSON.parse(storedBlogs)); } catch (e) {}
+      }
+      if (storedAbout) {
+        try { setAboutData(JSON.parse(storedAbout)); } catch (e) {}
+      }
     }
 
     // Try fetching from Supabase database
@@ -71,7 +150,11 @@ export function DataProvider({ children }) {
         if (supaProds && supaProds.length > 0) setProducts(supaProds);
 
         const { data: supaSlides } = await supabase.from('hero_slides').select('*');
-        if (supaSlides && supaSlides.length > 0) setSlides(supaSlides);
+        if (supaSlides && supaSlides.length > 0) {
+          const normSupa = supaSlides.map(normalizeSlide);
+          setSlides(normSupa);
+          saveStorage('rk_cms_slides', normSupa);
+        }
 
         const { data: supaBlogs } = await supabase.from('blogs').select('*');
         if (supaBlogs && supaBlogs.length > 0) setBlogs(supaBlogs);
@@ -113,18 +196,19 @@ export function DataProvider({ children }) {
 
   // --- SLIDE CRUD ---
   const addSlide = (slideData) => {
-    const newS = { ...slideData, id: Date.now().toString() };
-    const updated = [...slides, newS];
+    const normalized = normalizeSlide({ ...slideData, id: Date.now().toString() });
+    const updated = [...slides, normalized];
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
-    supabase.from('hero_slides').insert(newS).then(() => {}).catch(() => {});
+    supabase.from('hero_slides').insert(normalized).then(() => {}).catch(() => {});
   };
 
   const updateSlide = (updatedSlide) => {
-    const updated = slides.map(s => s.id === updatedSlide.id ? updatedSlide : s);
+    const normalized = normalizeSlide(updatedSlide);
+    const updated = slides.map(s => s.id === normalized.id ? normalized : s);
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
-    supabase.from('hero_slides').upsert(updatedSlide).then(() => {}).catch(() => {});
+    supabase.from('hero_slides').upsert(normalized).then(() => {}).catch(() => {});
   };
 
   const deleteSlide = (id) => {

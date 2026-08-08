@@ -28,6 +28,13 @@ export default function HeroSlider({ onOpenQuote }) {
     setCurrentIndex(idx);
   };
 
+  // Clamp currentIndex if slides array length changes
+  useEffect(() => {
+    if (currentIndex >= heroSlides.length && heroSlides.length > 0) {
+      setCurrentIndex(heroSlides.length - 1);
+    }
+  }, [heroSlides.length, currentIndex]);
+
   // Autoplay Timer (5000ms)
   useEffect(() => {
     if (!isPaused && heroSlides.length > 0) {

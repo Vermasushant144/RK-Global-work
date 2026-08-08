@@ -327,7 +327,7 @@ export default function RegisterPage() {
 
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .btn-email-submit:hover {
           background-color: #18181B !important;
           transform: translateY(-1px);
@@ -349,7 +349,7 @@ export default function RegisterPage() {
             display: none !important;
           }
         }
-      `}</style>
+      ` }} />
     </div>
   );
 }

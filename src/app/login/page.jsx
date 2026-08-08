@@ -302,7 +302,7 @@ export default function LoginPage() {
 
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .btn-email-submit:hover {
           background-color: #18181B !important;
           transform: translateY(-1px);
@@ -324,7 +324,7 @@ export default function LoginPage() {
             display: none !important;
           }
         }
-      `}</style>
+      ` }} />
     </div>
   );
 }

@@ -116,32 +116,45 @@ export default function SingleBlogPage() {
         </div>
       </div>
 
-      <style jsx global>{`
-        .blog-article-content h2 {
+      <style dangerouslySetInnerHTML={{ __html: `
+        .blog-article-body h2 {
           font-size: 1.5rem;
           font-weight: 800;
           color: #1E293B;
-          margin-top: 24px;
-          margin-bottom: 14px;
+          margin-top: 28px;
+          margin-bottom: 12px;
         }
-        .blog-article-content h3 {
+        .blog-article-body h3 {
           font-size: 1.2rem;
-          font-weight: 800;
+          font-weight: 700;
           color: #1E293B;
-          margin-top: 20px;
+          margin-top: 22px;
           margin-bottom: 10px;
         }
-        .blog-article-content p {
-          margin-bottom: 18px;
+        .blog-article-body p {
+          font-size: 0.975rem;
+          line-height: 1.75;
+          color: #475569;
+          margin-bottom: 16px;
         }
-        .blog-article-content ul {
-          margin-left: 24px;
-          margin-bottom: 18px;
+        .blog-article-body ul, .blog-article-body ol {
+          margin-bottom: 20px;
+          padding-left: 24px;
         }
-        .blog-article-content li {
+        .blog-article-body li {
+          font-size: 0.95rem;
+          line-height: 1.65;
+          color: #334155;
           margin-bottom: 8px;
         }
-      `}</style>
+        .blog-article-body blockquote {
+          border-left: 4px solid #F47B20;
+          padding-left: 18px;
+          font-style: italic;
+          color: #1E293B;
+          margin: 24px 0;
+        }
+      ` }} />
     </div>
   );
 }

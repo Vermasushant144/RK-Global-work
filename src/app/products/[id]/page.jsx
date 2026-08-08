@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { products as staticProducts } from '../../../data/products';
+import { useData } from '../../../context/DataContext';
+import './product.css';
 import { 
   ChevronRight, 
   Check, 
@@ -89,9 +91,9 @@ export default function ProductDetailPage() {
           }}
         >
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr', gap: '48px' }} className="product-top-grid">
-            
-            {/* Left Image & Thumbnails */}
+            {/* Left Image & Thumbnails Column */}
             <div>
+              {/* Main Product Image Container */}
               <div 
                 style={{
                   backgroundColor: '#FFFFFF',
@@ -103,28 +105,27 @@ export default function ProductDetailPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justify: 'center',
-                  minHeight: '360px'
+                  minHeight: '340px'
                 }}
               >
                 <div 
                   style={{
                     position: 'absolute',
-                    top: '16px',
-                    right: '16px',
+                    top: '14px',
+                    left: '14px',
                     fontSize: '0.75rem',
-                    fontWeight: 900,
-                    color: '#0B1F33',
-                    letterSpacing: '0.08em',
-                    backgroundColor: '#F1F5F9',
+                    fontWeight: 800,
+                    color: '#F47B20',
+                    backgroundColor: '#FFF7ED',
                     padding: '4px 10px',
                     borderRadius: '4px'
                   }}
                 >
-                  R.K. GLOBAL
+                  {product.code || 'RK-GLOBAL'}
                 </div>
 
                 <img 
-                  src={activeImage} 
+                  src={activeImage || product.image} 
                   alt={product.name} 
                   style={{ maxWidth: '100%', maxHeight: '340px', objectFit: 'contain' }}
                 />
@@ -132,8 +133,8 @@ export default function ProductDetailPage() {
 
               {/* Thumbnails Row */}
               <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-                {product.gallery.map((img, idx) => {
-                  const isSel = activeImage === img;
+                {(product.gallery && Array.isArray(product.gallery) && product.gallery.length > 0 ? product.gallery : [product.image]).map((img, idx) => {
+                  const isSel = (activeImage || product.image) === img;
                   return (
                     <button
                       key={idx}
@@ -288,7 +289,12 @@ export default function ProductDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(product.technicalSpecs).map(([key, val]) => (
+                    {Object.entries(product.technicalSpecs || {
+                      'Category': product.categoryName || 'Construction Equipment',
+                      'Price': product.priceFormatted || 'Ex-Factory Price',
+                      'Warranty': '24 Months OEM Warranty',
+                      'Manufacturer': 'R.K. Global Engineering'
+                    }).map(([key, val]) => (
                       <tr key={key}>
                         <td style={{ fontWeight: 600, color: '#475569' }}>{key}</td>
                         <td style={{ fontWeight: 700, color: '#1E293B' }}>{val}</td>
@@ -386,7 +392,7 @@ export default function ProductDetailPage() {
                       <td style={{ color: '#64748B', fontWeight: 600 }}>Warranty</td>
                       <td style={{ fontWeight: 700, color: '#16A34A' }}>24 Months OEM Warranty</td>
                     </tr>
-                    {Object.entries(product.technicalSpecs).map(([k, v]) => (
+                    {Object.entries(product.technicalSpecs || {}).map(([k, v]) => (
                       <tr key={k}>
                         <td style={{ color: '#64748B', fontWeight: 600 }}>{k}</td>
                         <td colSpan={3} style={{ fontWeight: 700, color: '#1E293B' }}>{v}</td>
@@ -691,15 +697,6 @@ export default function ProductDetailPage() {
         </div>
 
       </div>
-
-      <style jsx>{`
-        @media (max-width: 992px) {
-          .product-top-grid {
-            grid-template-columns: 1fr !important;
-            gap: 32px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
