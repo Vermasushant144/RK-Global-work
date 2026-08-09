@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { categories } from '../data/categories';
+import { categories as defaultCategories } from '../data/categories';
 import { CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useData } from '../context/DataContext';
 
 export default function BulkQuoteForm() {
+  const { categories: ctxCategories } = useData();
+  const categories = (ctxCategories && ctxCategories.length > 0) ? ctxCategories : defaultCategories;
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     category: 'Rebar Processing Machinery',

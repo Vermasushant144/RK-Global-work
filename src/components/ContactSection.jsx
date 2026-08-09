@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Phone, Mail, MapPin, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import { products } from '../data/products';
+import { supabase } from '../lib/supabaseClient';
 
 export default function ContactSection({ onToast }) {
   const [formData, setFormData] = useState({
@@ -28,13 +29,46 @@ export default function ContactSection({ onToast }) {
     return errs;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     setErrors(errs);
 
     if (Object.keys(errs).length === 0) {
       setIsSubmitting(true);
+
+      const enquiry = {
+        id: Date.now().toString(),
+        name: formData.name,
+        company: formData.company,
+        email: formData.email,
+        phone: formData.phone,
+        product: formData.product,
+        category: formData.product,
+        message: formData.message,
+        source: 'Contact Form',
+        status: 'New',
+        date: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+      };
+
+      // Save to localStorage
+      try {
+        const existing = JSON.parse(localStorage.getItem('rk_enquiries') || '[]');
+        existing.unshift(enquiry);
+        localStorage.setItem('rk_enquiries', JSON.stringify(existing));
+      } catch (err) {}
+
+      // Save to Supabase
+      try {
+        await supabase.from('enquiries').insert({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          product: formData.product,
+          message: `Company: ${formData.company} | Message: ${formData.message}`
+        });
+      } catch (err) {}
+
       setTimeout(() => {
         setIsSubmitting(false);
         setIsSuccess(true);
@@ -48,7 +82,7 @@ export default function ContactSection({ onToast }) {
           message: ''
         });
         setTimeout(() => setIsSuccess(false), 4000);
-      }, 1200);
+      }, 1000);
     }
   };
 

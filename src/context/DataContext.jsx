@@ -82,6 +82,9 @@ const DataContext = createContext({
   addProduct: () => {},
   updateProduct: () => {},
   deleteProduct: () => {},
+  addCategory: () => {},
+  updateCategory: () => {},
+  deleteCategory: () => {},
   addSlide: () => {},
   updateSlide: () => {},
   deleteSlide: () => {},
@@ -120,12 +123,16 @@ export function DataProvider({ children }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedProds = localStorage.getItem('rk_cms_products');
+      const storedCats = localStorage.getItem('rk_cms_categories');
       const storedSlides = localStorage.getItem('rk_cms_slides');
       const storedBlogs = localStorage.getItem('rk_cms_blogs');
       const storedAbout = localStorage.getItem('rk_cms_about');
 
       if (storedProds) {
         try { setProducts(JSON.parse(storedProds)); } catch (e) {}
+      }
+      if (storedCats) {
+        try { setCategories(JSON.parse(storedCats)); } catch (e) {}
       }
       if (storedSlides) {
         try {
@@ -149,6 +156,9 @@ export function DataProvider({ children }) {
         const { data: supaProds } = await supabase.from('products').select('*');
         if (supaProds && supaProds.length > 0) setProducts(supaProds);
 
+        const { data: supaCats } = await supabase.from('categories').select('*');
+        if (supaCats && supaCats.length > 0) setCategories(supaCats);
+
         const { data: supaSlides } = await supabase.from('hero_slides').select('*');
         if (supaSlides && supaSlides.length > 0) {
           const normSupa = supaSlides.map(normalizeSlide);
@@ -171,81 +181,260 @@ export function DataProvider({ children }) {
     }
   };
 
+  // Strip base64 from image field - replace with placeholder for Supabase (base64 too large for HTTP)
+  const safeImage = (img, fallback) => {
+    if (!img) return fallback || '/images/img/Untitled design - 2026-02-02T154951.040.webp';
+    if (String(img).startsWith('data:')) return fallback || '/images/img/Untitled design - 2026-02-02T154951.040.webp';
+    return img;
+  };
+
+  // --- PAYLOAD SANITIZERS FOR SUPABASE ---
+  const cleanProduct = (p) => ({
+    id: String(p.id || Date.now()),
+    code: p.code || 'RK-PRODUCT',
+    name: p.name || 'Machinery',
+    categoryName: p.categoryName || p.category || 'Rebar Processing',
+    category: p.category || 'rebar-processing',
+    priceFormatted: p.priceFormatted || '₹ 1,50,000',
+    priceNum: Number(p.priceNum) || 150000,
+    shortDescription: p.shortDescription || p.description || '',
+    description: p.description || p.shortDescription || '',
+    image: safeImage(p.image),
+    gallery: Array.isArray(p.gallery) ? p.gallery.map(g => safeImage(g)) : [safeImage(p.image)],
+    technicalSpecs: typeof p.technicalSpecs === 'object' && p.technicalSpecs ? p.technicalSpecs : {},
+    keySpecs: Array.isArray(p.keySpecs) ? p.keySpecs : [],
+    features: Array.isArray(p.features) ? p.features : [],
+    minOrderQty: p.minOrderQty || '1 Piece / Pieces',
+    supplyAbility: p.supplyAbility || '5 Piece Per Day',
+    deliveryTime: p.deliveryTime || '1 - 3 Days'
+  });
+
+  const cleanBlog = (b) => ({
+    id: String(b.id || Date.now()),
+    slug: b.slug || (b.title ? b.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `blog-${Date.now()}`),
+    title: b.title || 'Untitled Blog',
+    category: b.category || 'Technical Guide',
+    author: b.author || 'R.K. Global Engineering',
+    date: b.date || new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+    readTime: b.readTime || '5 min read',
+    image: safeImage(b.image, 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=800&auto=format&fit=crop'),
+    excerpt: b.excerpt || b.title || '',
+    content: b.content || '<p>Article content...</p>'
+  });
+
+  const cleanCategory = (c) => ({
+    id: String(c.id || c.slug || Date.now()),
+    name: c.name || 'Category',
+    slug: c.slug || (c.name ? c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `cat-${Date.now()}`),
+    description: c.description || '',
+    image: safeImage(c.image),
+    itemCount: Number(c.itemCount) || 0
+  });
+
+  const cleanSlide = (s) => ({
+    id: String(s.id || Date.now()),
+    title: s.title || 'Heavy Duty Construction Machinery',
+    subtitle: s.subtitle || '',
+    badge: s.badge || 'OFFICIAL MANUFACTURER',
+    image: safeImage(s.image),
+    eyebrow: s.eyebrow || s.badge || 'OFFICIAL MANUFACTURER',
+    headingLine1: s.headingLine1 || s.title || '',
+    headingLine2: s.headingLine2 || '',
+    description: s.description || s.subtitle || '',
+    features: Array.isArray(s.features) ? s.features : [],
+    btnPrimaryText: s.btnPrimaryText || 'Request Quote Now',
+    btnSecondaryText: s.btnSecondaryText || 'View 2026 Catalog'
+  });
+
   // --- PRODUCT CRUD ---
-  const addProduct = (prodData) => {
-    const newP = { ...prodData, id: prodData.id || Date.now().toString() };
-    const updated = [newP, ...products];
+  const addProduct = async (prodData) => {
+    const cleaned = cleanProduct(prodData);
+    const updated = [cleaned, ...products];
     setProducts(updated);
     saveStorage('rk_cms_products', updated);
-    supabase.from('products').insert(newP).then(() => {}).catch(() => {});
+
+    try {
+      console.log('Sending to Supabase products:', cleaned);
+      const { data, error } = await supabase.from('products').upsert([cleaned]);
+      if (error) {
+        console.error('Supabase addProduct Error:', error);
+        if (typeof window !== 'undefined') {
+          alert('Supabase Product Error:\n' + (error.message || error.hint || JSON.stringify(error)));
+        }
+      } else {
+        console.log('Supabase addProduct SUCCESS:', data);
+      }
+    } catch (err) {
+      console.error('Supabase addProduct Exception:', err);
+      if (typeof window !== 'undefined') alert('Product save exception: ' + err.message);
+    }
   };
 
-  const updateProduct = (updatedProd) => {
-    const updated = products.map(p => p.id === updatedProd.id ? updatedProd : p);
+  const updateProduct = async (updatedProd) => {
+    const cleaned = cleanProduct(updatedProd);
+    const updated = products.map(p => String(p.id) === String(cleaned.id) ? cleaned : p);
     setProducts(updated);
     saveStorage('rk_cms_products', updated);
-    supabase.from('products').upsert(updatedProd).then(() => {}).catch(() => {});
+
+    try {
+      const { data, error } = await supabase.from('products').upsert([cleaned]);
+      if (error) console.error('Supabase updateProduct Error:', error);
+      else console.log('Supabase updateProduct Success:', data);
+    } catch (err) {
+      console.error('Supabase updateProduct Exception:', err);
+    }
   };
 
-  const deleteProduct = (id) => {
-    const updated = products.filter(p => p.id !== id);
+  const deleteProduct = async (id) => {
+    const targetId = String(id);
+    const updated = products.filter(p => String(p.id) !== targetId);
     setProducts(updated);
     saveStorage('rk_cms_products', updated);
-    supabase.from('products').delete().eq('id', id).then(() => {}).catch(() => {});
+
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', targetId);
+      if (error) console.error('Supabase deleteProduct Error:', error);
+    } catch (err) {}
   };
 
   // --- SLIDE CRUD ---
-  const addSlide = (slideData) => {
-    const normalized = normalizeSlide({ ...slideData, id: Date.now().toString() });
-    const updated = [...slides, normalized];
+  const addSlide = async (slideData) => {
+    const cleaned = cleanSlide(slideData);
+    const updated = [...slides, cleaned];
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
-    supabase.from('hero_slides').insert(normalized).then(() => {}).catch(() => {});
+
+    try {
+      const { error } = await supabase.from('hero_slides').upsert([cleaned]);
+      if (error) console.error('Supabase addSlide Error:', error);
+    } catch (err) {}
   };
 
-  const updateSlide = (updatedSlide) => {
-    const normalized = normalizeSlide(updatedSlide);
-    const updated = slides.map(s => s.id === normalized.id ? normalized : s);
+  const updateSlide = async (updatedSlide) => {
+    const cleaned = cleanSlide(updatedSlide);
+    const updated = slides.map(s => String(s.id) === String(cleaned.id) ? cleaned : s);
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
-    supabase.from('hero_slides').upsert(normalized).then(() => {}).catch(() => {});
+
+    try {
+      const { error } = await supabase.from('hero_slides').upsert([cleaned]);
+      if (error) console.error('Supabase updateSlide Error:', error);
+    } catch (err) {}
   };
 
-  const deleteSlide = (id) => {
-    const updated = slides.filter(s => s.id !== id);
+  const deleteSlide = async (id) => {
+    const targetId = String(id);
+    const updated = slides.filter(s => String(s.id) !== targetId);
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
-    supabase.from('hero_slides').delete().eq('id', id).then(() => {}).catch(() => {});
+
+    try {
+      const { error } = await supabase.from('hero_slides').delete().eq('id', targetId);
+      if (error) console.error('Supabase deleteSlide Error:', error);
+    } catch (err) {}
   };
 
   // --- BLOG CRUD ---
-  const addBlog = (blogData) => {
-    const newB = { ...blogData, id: Date.now().toString(), slug: blogData.slug || blogData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') };
-    const updated = [newB, ...blogs];
+  const addBlog = async (blogData) => {
+    const cleaned = cleanBlog(blogData);
+    const updated = [cleaned, ...blogs];
     setBlogs(updated);
     saveStorage('rk_cms_blogs', updated);
-    supabase.from('blogs').insert(newB).then(() => {}).catch(() => {});
+
+    try {
+      console.log('Sending to Supabase blogs:', cleaned);
+      const { data, error } = await supabase.from('blogs').upsert([cleaned]);
+      if (error) {
+        console.error('Supabase addBlog Error:', error);
+        if (typeof window !== 'undefined') {
+          alert('Supabase Blog Error:\n' + (error.message || error.hint || JSON.stringify(error)));
+        }
+      } else {
+        console.log('Supabase addBlog SUCCESS:', data);
+      }
+    } catch (err) {
+      console.error('Supabase addBlog Exception:', err);
+      if (typeof window !== 'undefined') alert('Blog save exception: ' + err.message);
+    }
   };
 
-  const updateBlog = (updatedBlog) => {
-    const updated = blogs.map(b => b.id === updatedBlog.id ? updatedBlog : b);
+  const updateBlog = async (updatedBlog) => {
+    const cleaned = cleanBlog(updatedBlog);
+    const updated = blogs.map(b => String(b.id) === String(cleaned.id) ? cleaned : b);
     setBlogs(updated);
     saveStorage('rk_cms_blogs', updated);
-    supabase.from('blogs').upsert(updatedBlog).then(() => {}).catch(() => {});
+
+    try {
+      const { data, error } = await supabase.from('blogs').upsert([cleaned]);
+      if (error) console.error('Supabase updateBlog Error:', error);
+      else console.log('Supabase updateBlog Success:', data);
+    } catch (err) {
+      console.error('Supabase updateBlog Exception:', err);
+    }
   };
 
-  const deleteBlog = (id) => {
-    const updated = blogs.filter(b => b.id !== id);
+  const deleteBlog = async (id) => {
+    const targetId = String(id);
+    const updated = blogs.filter(b => String(b.id) !== targetId);
     setBlogs(updated);
     saveStorage('rk_cms_blogs', updated);
-    supabase.from('blogs').delete().eq('id', id).then(() => {}).catch(() => {});
+
+    try {
+      const { error } = await supabase.from('blogs').delete().eq('id', targetId);
+      if (error) console.error('Supabase deleteBlog Error:', error);
+    } catch (err) {}
+  };
+
+  // --- CATEGORY CRUD ---
+  const addCategory = async (catData) => {
+    const cleaned = cleanCategory(catData);
+    const updated = [cleaned, ...categories];
+    setCategories(updated);
+    saveStorage('rk_cms_categories', updated);
+
+    try {
+      const { error } = await supabase.from('categories').upsert([cleaned]);
+      if (error) console.error('Supabase addCategory Error:', error);
+    } catch (err) {
+      console.error('Supabase addCategory Exception:', err);
+    }
+  };
+
+  const updateCategory = async (updatedCat) => {
+    const cleaned = cleanCategory(updatedCat);
+    const updated = categories.map(c => String(c.id) === String(cleaned.id) ? cleaned : c);
+    setCategories(updated);
+    saveStorage('rk_cms_categories', updated);
+
+    try {
+      const { error } = await supabase.from('categories').upsert([cleaned]);
+      if (error) console.error('Supabase updateCategory Error:', error);
+    } catch (err) {
+      console.error('Supabase updateCategory Exception:', err);
+    }
+  };
+
+  const deleteCategory = async (id) => {
+    const targetId = String(id);
+    const updated = categories.filter(c => String(c.id) !== targetId);
+    setCategories(updated);
+    saveStorage('rk_cms_categories', updated);
+
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', targetId);
+      if (error) console.error('Supabase deleteCategory Error:', error);
+    } catch (err) {}
   };
 
   // --- ABOUT US CRUD ---
-  const updateAbout = (newAboutData) => {
+  const updateAbout = async (newAboutData) => {
     setAboutData(newAboutData);
     saveStorage('rk_cms_about', newAboutData);
-    supabase.from('site_settings').upsert({ key: 'about_section', value: newAboutData }).then(() => {}).catch(() => {});
+
+    try {
+      const { error } = await supabase.from('site_settings').upsert([{ key: 'about_section', value: newAboutData }]);
+      if (error) console.error('Supabase updateAbout Error:', error);
+    } catch (err) {}
   };
 
   return (
@@ -258,6 +447,9 @@ export function DataProvider({ children }) {
       addProduct,
       updateProduct,
       deleteProduct,
+      addCategory,
+      updateCategory,
+      deleteCategory,
       addSlide,
       updateSlide,
       deleteSlide,

@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { categories } from '../data/categories';
+import { categories as defaultCategories } from '../data/categories';
+import { useData } from '../context/DataContext';
 
 export default function CategorySection() {
+  const { categories: ctxCategories } = useData();
+  const categories = (ctxCategories && ctxCategories.length > 0) ? ctxCategories : defaultCategories;
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
