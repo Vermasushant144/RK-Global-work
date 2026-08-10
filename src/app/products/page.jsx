@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+// import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useData } from '../../context/DataContext';
@@ -8,10 +9,11 @@ import { products as defaultProducts } from '../../data/products';
 import { categories as defaultCategories } from '../../data/categories';
 import { Search, Eye, Send, Filter, ChevronRight } from 'lucide-react';
 
-export default function ProductsPage() {
+// export default function ProductsPage() {
+function ProductsContent() {
   const searchParams = useSearchParams();
   const catQuery = searchParams?.get('category');
-  
+
   const { products: ctxProducts, categories: ctxCategories } = useData();
   const productsList = (ctxProducts && ctxProducts.length > 0) ? ctxProducts : defaultProducts;
   const categoriesList = (ctxCategories && ctxCategories.length > 0) ? ctxCategories : defaultCategories;
@@ -39,14 +41,14 @@ export default function ProductsPage() {
   const filteredProducts = productsList.filter(p => {
     const matchesCat = matchesCategory(p, selectedCat);
     const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (p.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (p.shortDescription || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (p.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.shortDescription || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', paddingBottom: '100px' }}>
-      
+
       {/* Page Hero Banner */}
       <div style={{ backgroundColor: 'var(--primary)', color: '#FFFFFF', padding: '60px 0', borderBottom: '4px solid var(--accent)' }}>
         <div className="container">
@@ -67,7 +69,7 @@ export default function ProductsPage() {
       {/* Main Filter & Grid Container */}
       <div className="container" style={{ paddingTop: '40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '36px' }} className="catalog-layout">
-          
+
           {/* Left Sidebar Filter */}
           <div>
             <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '24px', position: 'sticky', top: '90px' }}>
@@ -138,8 +140,8 @@ export default function ProductsPage() {
             {/* Top Search Bar */}
             <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '16px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Search size={20} style={{ color: 'var(--text-muted)' }} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search products by model code, name, specs (e.g. MX500, Mixer, Cutter)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -186,9 +188,9 @@ export default function ProductsPage() {
                         <span>Specs</span>
                       </Link>
 
-                      <button 
-                        type="button" 
-                        className="btn btn-primary btn-sm" 
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
                         style={{ flex: 1 }}
                         onClick={() => {
                           if (typeof window !== 'undefined') {
