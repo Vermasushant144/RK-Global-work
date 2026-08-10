@@ -9,7 +9,6 @@ import { products as defaultProducts } from '../../data/products';
 import { categories as defaultCategories } from '../../data/categories';
 import { Search, Eye, Send, Filter, ChevronRight } from 'lucide-react';
 
-// export default function ProductsPage() {
 function ProductsContent() {
   const searchParams = useSearchParams();
   const catQuery = searchParams?.get('category');
@@ -235,5 +234,17 @@ function ProductsContent() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ backgroundColor: 'var(--bg-main)', padding: '100px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+        Loading catalog...
+      </div>
+    }>
+      <ProductsContent />
+    </Suspense>
   );
 }
