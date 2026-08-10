@@ -101,9 +101,11 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setAuthError('');
 
-    // Admin hardcoded shortcut
+    // Dev-only fallback (disabled in production — admin must use Supabase Auth)
     const isHardcodedAdmin =
-      email.toLowerCase() === 'admin@rkglobalengineering.com' && password === 'admin123';
+      process.env.NODE_ENV !== 'production' &&
+      email.toLowerCase() === 'admin@rkglobalengineering.com' &&
+      password === 'admin123';
 
     if (isHardcodedAdmin) {
       const userData = { email, isAdmin: true, fullName: 'Admin' };
@@ -117,7 +119,7 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Try Supabase Auth
+    // Try Supabase Auth (required in production for database access)
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {

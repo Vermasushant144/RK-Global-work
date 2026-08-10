@@ -143,7 +143,9 @@ export default function AdminDashboardPage() {
         .from('enquiries')
         .select('*');
 
-      if (!error && data && data.length > 0) {
+      if (error) {
+        console.error('[Admin] Enquiries load error:', error.message);
+      } else if (data && data.length > 0) {
         const supaMapped = data.map(d => ({
           id: String(d.id),
           name: d.name || 'Anonymous',

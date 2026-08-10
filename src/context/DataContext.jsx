@@ -5,6 +5,7 @@ import { products as defaultProducts } from '../data/products';
 import { categories as defaultCategories } from '../data/categories';
 import { insights as defaultBlogs } from '../data/insights';
 import { supabase } from '../lib/supabaseClient';
+import { useAuth } from './AuthContext';
 
 const defaultSlides = [
   { 
@@ -95,6 +96,7 @@ const DataContext = createContext({
 });
 
 export function DataProvider({ children }) {
+  const { isAdmin } = useAuth();
   const [products, setProducts] = useState(defaultProducts);
   const [categories, setCategories] = useState(defaultCategories);
   const [slides, setSlides] = useState(defaultSlides);
@@ -128,16 +130,12 @@ export function DataProvider({ children }) {
       const storedSlides = localStorage.getItem('rk_cms_slides');
       const storedBlogs = localStorage.getItem('rk_cms_blogs');
       const storedAbout = localStorage.getItem('rk_cms_about');
-      const storedOrders = localStorage.getItem('rk_cms_orders');
 
       if (storedProds) {
         try { setProducts(JSON.parse(storedProds)); } catch (e) {}
       }
       if (storedCats) {
         try { setCategories(JSON.parse(storedCats)); } catch (e) {}
-      }
-      if (storedOrders) {
-        try { setOrders(JSON.parse(storedOrders)); } catch (e) {}
       }
       if (storedSlides) {
         try {
@@ -229,6 +227,42 @@ export function DataProvider({ children }) {
 
     syncFromSupabase();
   }, []);
+
+  // Orders contain customer PII — only sync when admin is authenticated via Supabase
+  useEffect(() => {
+    if (!isAdmin) {
+      setOrders([]);
+      return;
+    }
+
+    const syncOrders = async () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('rk_cms_orders');
+          if (stored) setOrders(JSON.parse(stored));
+        } catch (e) {}
+      }
+
+      try {
+        const { data: supaOrders, error } = await supabase
+          .from('orders')
+          .select('*')
+          .order('createdAt', { ascending: false });
+
+        if (error) {
+          console.error('[DataContext] Orders sync error:', error.message);
+          return;
+        }
+
+        if (supaOrders && supaOrders.length > 0) {
+          setOrders(supaOrders);
+          saveStorage('rk_cms_orders', supaOrders);
+        }
+      } catch (err) {}
+    };
+
+    syncOrders();
+  }, [isAdmin]);
 
   // Save to Storage helper — handles QuotaExceededError gracefully
   const saveStorage = (key, data) => {
