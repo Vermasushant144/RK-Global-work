@@ -100,6 +100,7 @@ export function DataProvider({ children }) {
   const [slides, setSlides] = useState(defaultSlides);
   const [blogs, setBlogs] = useState(defaultBlogs);
   const [aboutData, setAboutData] = useState(defaultAboutData);
+  const [orders, setOrders] = useState([]);
 
   const normalizeSlide = (s) => ({
     id: s.id || Date.now().toString(),
@@ -127,12 +128,16 @@ export function DataProvider({ children }) {
       const storedSlides = localStorage.getItem('rk_cms_slides');
       const storedBlogs = localStorage.getItem('rk_cms_blogs');
       const storedAbout = localStorage.getItem('rk_cms_about');
+      const storedOrders = localStorage.getItem('rk_cms_orders');
 
       if (storedProds) {
         try { setProducts(JSON.parse(storedProds)); } catch (e) {}
       }
       if (storedCats) {
         try { setCategories(JSON.parse(storedCats)); } catch (e) {}
+      }
+      if (storedOrders) {
+        try { setOrders(JSON.parse(storedOrders)); } catch (e) {}
       }
       if (storedSlides) {
         try {
@@ -154,10 +159,44 @@ export function DataProvider({ children }) {
     const syncFromSupabase = async () => {
       try {
         const { data: supaProds } = await supabase.from('products').select('*');
-        if (supaProds && supaProds.length > 0) setProducts(supaProds);
+        if (supaProds && supaProds.length > 0) {
+          let localProds = [];
+          if (typeof window !== 'undefined') {
+            try {
+              const stored = localStorage.getItem('rk_cms_products');
+              if (stored) localProds = JSON.parse(stored);
+            } catch (e) {}
+          }
+          const mergedProds = supaProds.map(sProd => {
+            const localMatch = localProds.find(l => String(l.id) === String(sProd.id));
+            if (localMatch && localMatch.image && localMatch.image !== '/images/img/Untitled design - 2026-02-02T154951.040.webp' && (!sProd.image || sProd.image === '/images/img/Untitled design - 2026-02-02T154951.040.webp')) {
+              return { ...sProd, image: localMatch.image, gallery: [localMatch.image] };
+            }
+            return sProd;
+          });
+          setProducts(mergedProds);
+          saveStorage('rk_cms_products', mergedProds);
+        }
 
         const { data: supaCats } = await supabase.from('categories').select('*');
-        if (supaCats && supaCats.length > 0) setCategories(supaCats);
+        if (supaCats && supaCats.length > 0) {
+          let localCats = [];
+          if (typeof window !== 'undefined') {
+            try {
+              const stored = localStorage.getItem('rk_cms_categories');
+              if (stored) localCats = JSON.parse(stored);
+            } catch (e) {}
+          }
+          const mergedCats = supaCats.map(sCat => {
+            const localMatch = localCats.find(l => String(l.id) === String(sCat.id));
+            if (localMatch && localMatch.image && localMatch.image !== '/images/img/Untitled design - 2026-02-02T154951.040.webp' && (!sCat.image || sCat.image === '/images/img/Untitled design - 2026-02-02T154951.040.webp')) {
+              return { ...sCat, image: localMatch.image };
+            }
+            return sCat;
+          });
+          setCategories(mergedCats);
+          saveStorage('rk_cms_categories', mergedCats);
+        }
 
         const { data: supaSlides } = await supabase.from('hero_slides').select('*');
         if (supaSlides && supaSlides.length > 0) {
@@ -167,29 +206,58 @@ export function DataProvider({ children }) {
         }
 
         const { data: supaBlogs } = await supabase.from('blogs').select('*');
-        if (supaBlogs && supaBlogs.length > 0) setBlogs(supaBlogs);
+        if (supaBlogs && supaBlogs.length > 0) {
+          let localBlogs = [];
+          if (typeof window !== 'undefined') {
+            try {
+              const stored = localStorage.getItem('rk_cms_blogs');
+              if (stored) localBlogs = JSON.parse(stored);
+            } catch (e) {}
+          }
+          const mergedBlogs = supaBlogs.map(sBlog => {
+            const localMatch = localBlogs.find(l => String(l.id) === String(sBlog.id));
+            if (localMatch && localMatch.image && (!sBlog.image || sBlog.image.includes('unsplash.com'))) {
+              return { ...sBlog, image: localMatch.image };
+            }
+            return sBlog;
+          });
+          setBlogs(mergedBlogs);
+          saveStorage('rk_cms_blogs', mergedBlogs);
+        }
       } catch (err) {}
     };
 
     syncFromSupabase();
   }, []);
 
-  // Save to Storage helper
+  // Save to Storage helper — handles QuotaExceededError gracefully
   const saveStorage = (key, data) => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(key, JSON.stringify(data));
+      try {
+        localStorage.setItem(key, JSON.stringify(data));
+      } catch (err) {
+        if (err && (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+          console.error('[DataContext] localStorage quota exceeded for key:', key);
+        } else {
+          console.error('[DataContext] saveStorage error:', err);
+        }
+      }
     }
   };
 
-  // Strip base64 from image field - replace with placeholder for Supabase (base64 too large for HTTP)
-  const safeImage = (img, fallback) => {
-    if (!img) return fallback || '/images/img/Untitled design - 2026-02-02T154951.040.webp';
-    if (String(img).startsWith('data:')) return fallback || '/images/img/Untitled design - 2026-02-02T154951.040.webp';
-    return img;
+
+  // Preserve user chosen image 100% without stripping base64 or forcing default SONA image
+  const safeImageForSupabase = (img) => {
+    return img || '';
   };
 
-  // --- PAYLOAD SANITIZERS FOR SUPABASE ---
-  const cleanProduct = (p) => ({
+  // Keep original image (including base64) for localStorage
+  const keepImage = (img) => {
+    return img || '';
+  };
+
+  // --- PAYLOAD FOR LOCALSTORAGE & SUPABASE ---
+  const rawProduct = (p) => ({
     id: String(p.id || Date.now()),
     code: p.code || 'RK-PRODUCT',
     name: p.name || 'Machinery',
@@ -199,8 +267,8 @@ export function DataProvider({ children }) {
     priceNum: Number(p.priceNum) || 150000,
     shortDescription: p.shortDescription || p.description || '',
     description: p.description || p.shortDescription || '',
-    image: safeImage(p.image),
-    gallery: Array.isArray(p.gallery) ? p.gallery.map(g => safeImage(g)) : [safeImage(p.image)],
+    image: keepImage(p.image),
+    gallery: Array.isArray(p.gallery) ? p.gallery.map(g => keepImage(g)) : [keepImage(p.image)],
     technicalSpecs: typeof p.technicalSpecs === 'object' && p.technicalSpecs ? p.technicalSpecs : {},
     keySpecs: Array.isArray(p.keySpecs) ? p.keySpecs : [],
     features: Array.isArray(p.features) ? p.features : [],
@@ -209,7 +277,9 @@ export function DataProvider({ children }) {
     deliveryTime: p.deliveryTime || '1 - 3 Days'
   });
 
-  const cleanBlog = (b) => ({
+  const cleanProduct = (p) => rawProduct(p);
+
+  const rawBlog = (b) => ({
     id: String(b.id || Date.now()),
     slug: b.slug || (b.title ? b.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `blog-${Date.now()}`),
     title: b.title || 'Untitled Blog',
@@ -217,26 +287,30 @@ export function DataProvider({ children }) {
     author: b.author || 'R.K. Global Engineering',
     date: b.date || new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
     readTime: b.readTime || '5 min read',
-    image: safeImage(b.image, 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=800&auto=format&fit=crop'),
+    image: keepImage(b.image),
     excerpt: b.excerpt || b.title || '',
     content: b.content || '<p>Article content...</p>'
   });
 
-  const cleanCategory = (c) => ({
+  const cleanBlog = (b) => rawBlog(b);
+
+  const rawCategory = (c) => ({
     id: String(c.id || c.slug || Date.now()),
     name: c.name || 'Category',
     slug: c.slug || (c.name ? c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : `cat-${Date.now()}`),
     description: c.description || '',
-    image: safeImage(c.image),
+    image: keepImage(c.image),
     itemCount: Number(c.itemCount) || 0
   });
 
-  const cleanSlide = (s) => ({
+  const cleanCategory = (c) => rawCategory(c);
+
+  const rawSlide = (s) => ({
     id: String(s.id || Date.now()),
     title: s.title || 'Heavy Duty Construction Machinery',
     subtitle: s.subtitle || '',
     badge: s.badge || 'OFFICIAL MANUFACTURER',
-    image: safeImage(s.image),
+    image: keepImage(s.image),
     eyebrow: s.eyebrow || s.badge || 'OFFICIAL MANUFACTURER',
     headingLine1: s.headingLine1 || s.title || '',
     headingLine2: s.headingLine2 || '',
@@ -246,12 +320,15 @@ export function DataProvider({ children }) {
     btnSecondaryText: s.btnSecondaryText || 'View 2026 Catalog'
   });
 
+  const cleanSlide = (s) => rawSlide(s);
+
   // --- PRODUCT CRUD ---
   const addProduct = async (prodData) => {
-    const cleaned = cleanProduct(prodData);
-    const updated = [cleaned, ...products];
+    const raw = rawProduct(prodData);
+    const updated = [raw, ...products];
     setProducts(updated);
     saveStorage('rk_cms_products', updated);
+    const cleaned = cleanProduct(prodData);
 
     try {
       console.log('Sending to Supabase products:', cleaned);
@@ -271,10 +348,11 @@ export function DataProvider({ children }) {
   };
 
   const updateProduct = async (updatedProd) => {
-    const cleaned = cleanProduct(updatedProd);
-    const updated = products.map(p => String(p.id) === String(cleaned.id) ? cleaned : p);
+    const raw = rawProduct(updatedProd);
+    const updated = products.map(p => String(p.id) === String(raw.id) ? raw : p);
     setProducts(updated);
     saveStorage('rk_cms_products', updated);
+    const cleaned = cleanProduct(updatedProd);
 
     try {
       const { data, error } = await supabase.from('products').upsert([cleaned]);
@@ -299,10 +377,11 @@ export function DataProvider({ children }) {
 
   // --- SLIDE CRUD ---
   const addSlide = async (slideData) => {
-    const cleaned = cleanSlide(slideData);
-    const updated = [...slides, cleaned];
+    const raw = rawSlide(slideData);
+    const updated = [...slides, raw];
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
+    const cleaned = cleanSlide(slideData);
 
     try {
       const { error } = await supabase.from('hero_slides').upsert([cleaned]);
@@ -311,10 +390,11 @@ export function DataProvider({ children }) {
   };
 
   const updateSlide = async (updatedSlide) => {
-    const cleaned = cleanSlide(updatedSlide);
-    const updated = slides.map(s => String(s.id) === String(cleaned.id) ? cleaned : s);
+    const raw = rawSlide(updatedSlide);
+    const updated = slides.map(s => String(s.id) === String(raw.id) ? raw : s);
     setSlides(updated);
     saveStorage('rk_cms_slides', updated);
+    const cleaned = cleanSlide(updatedSlide);
 
     try {
       const { error } = await supabase.from('hero_slides').upsert([cleaned]);
@@ -336,10 +416,11 @@ export function DataProvider({ children }) {
 
   // --- BLOG CRUD ---
   const addBlog = async (blogData) => {
-    const cleaned = cleanBlog(blogData);
-    const updated = [cleaned, ...blogs];
+    const raw = rawBlog(blogData);
+    const updated = [raw, ...blogs];
     setBlogs(updated);
     saveStorage('rk_cms_blogs', updated);
+    const cleaned = cleanBlog(blogData);
 
     try {
       console.log('Sending to Supabase blogs:', cleaned);
@@ -359,10 +440,11 @@ export function DataProvider({ children }) {
   };
 
   const updateBlog = async (updatedBlog) => {
-    const cleaned = cleanBlog(updatedBlog);
-    const updated = blogs.map(b => String(b.id) === String(cleaned.id) ? cleaned : b);
+    const raw = rawBlog(updatedBlog);
+    const updated = blogs.map(b => String(b.id) === String(raw.id) ? raw : b);
     setBlogs(updated);
     saveStorage('rk_cms_blogs', updated);
+    const cleaned = cleanBlog(updatedBlog);
 
     try {
       const { data, error } = await supabase.from('blogs').upsert([cleaned]);
@@ -387,10 +469,11 @@ export function DataProvider({ children }) {
 
   // --- CATEGORY CRUD ---
   const addCategory = async (catData) => {
-    const cleaned = cleanCategory(catData);
-    const updated = [cleaned, ...categories];
+    const raw = rawCategory(catData);
+    const updated = [raw, ...categories];
     setCategories(updated);
     saveStorage('rk_cms_categories', updated);
+    const cleaned = cleanCategory(catData);
 
     try {
       const { error } = await supabase.from('categories').upsert([cleaned]);
@@ -401,10 +484,11 @@ export function DataProvider({ children }) {
   };
 
   const updateCategory = async (updatedCat) => {
-    const cleaned = cleanCategory(updatedCat);
-    const updated = categories.map(c => String(c.id) === String(cleaned.id) ? cleaned : c);
+    const raw = rawCategory(updatedCat);
+    const updated = categories.map(c => String(c.id) === String(raw.id) ? raw : c);
     setCategories(updated);
     saveStorage('rk_cms_categories', updated);
+    const cleaned = cleanCategory(updatedCat);
 
     try {
       const { error } = await supabase.from('categories').upsert([cleaned]);
@@ -437,6 +521,62 @@ export function DataProvider({ children }) {
     } catch (err) {}
   };
 
+  // --- ORDERS CRUD ---
+  const addOrder = async (orderData) => {
+    const newOrder = {
+      id: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
+      customerName: orderData.customerName || 'Customer',
+      phone: orderData.phone || '',
+      email: orderData.email || '',
+      address: orderData.address || '',
+      productName: orderData.productName || 'Machinery',
+      productCode: orderData.productCode || '',
+      productId: orderData.productId || '',
+      productImage: orderData.productImage || '',
+      priceFormatted: orderData.priceFormatted || '',
+      quantity: orderData.quantity || '1',
+      unit: orderData.unit || 'Piece / Pieces',
+      totalAmount: orderData.totalAmount || orderData.priceFormatted || '',
+      notes: orderData.notes || '',
+      date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      status: 'New Order',
+      createdAt: Date.now()
+    };
+
+    const updated = [newOrder, ...orders];
+    setOrders(updated);
+    saveStorage('rk_cms_orders', updated);
+
+    try {
+      const { error } = await supabase.from('orders').upsert([newOrder]);
+      if (error) console.error('Supabase addOrder Error:', error);
+    } catch (err) {}
+
+    return newOrder;
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    const updated = orders.map(o => String(o.id) === String(orderId) ? { ...o, status: newStatus } : o);
+    setOrders(updated);
+    saveStorage('rk_cms_orders', updated);
+
+    try {
+      const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', String(orderId));
+      if (error) console.error('Supabase updateOrderStatus Error:', error);
+    } catch (err) {}
+  };
+
+  const deleteOrder = async (orderId) => {
+    const updated = orders.filter(o => String(o.id) !== String(orderId));
+    setOrders(updated);
+    saveStorage('rk_cms_orders', updated);
+
+    try {
+      const { error } = await supabase.from('orders').delete().eq('id', String(orderId));
+      if (error) console.error('Supabase deleteOrder Error:', error);
+    } catch (err) {}
+  };
+
   return (
     <DataContext.Provider value={{
       products,
@@ -444,6 +584,7 @@ export function DataProvider({ children }) {
       slides,
       blogs,
       aboutData,
+      orders,
       addProduct,
       updateProduct,
       deleteProduct,
@@ -456,7 +597,10 @@ export function DataProvider({ children }) {
       addBlog,
       updateBlog,
       deleteBlog,
-      updateAbout
+      updateAbout,
+      addOrder,
+      updateOrderStatus,
+      deleteOrder
     }}>
       {children}
     </DataContext.Provider>

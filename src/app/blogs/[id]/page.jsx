@@ -3,15 +3,19 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ChevronRight, Calendar, User, Clock } from 'lucide-react';
-import { insights } from '../../../data/insights';
+import { useData } from '../../../context/DataContext';
+import { insights as defaultInsights } from '../../../data/insights';
 
 export default function SingleBlogPage() {
   const params = useParams();
   const blogId = params?.id;
 
-  const blog = insights.find(b => b.id === blogId || b.slug === blogId) || insights[0];
+  const { blogs: ctxBlogs } = useData();
+  const insights = (ctxBlogs && ctxBlogs.length > 0) ? ctxBlogs : defaultInsights;
 
-  const relatedArticles = insights.filter(b => b.id !== blog.id).slice(0, 3);
+  const blog = insights.find(b => String(b.id) === String(blogId) || String(b.slug) === String(blogId)) || insights[0];
+
+  const relatedArticles = insights.filter(b => String(b.id) !== String(blog.id)).slice(0, 3);
 
   return (
     <div style={{ backgroundColor: '#F8FAFC', paddingBottom: '100px' }}>

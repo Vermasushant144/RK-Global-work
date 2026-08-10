@@ -113,8 +113,8 @@ export default function Header({ onOpenQuote, onOpenSearch }) {
     }
   });
 
-  // 5. Keep All Products at top, and only include categories that have products
-  const categoryList = Object.values(categoryMap).filter(cat => cat.name === "All Products" || cat.products.length > 0);
+  // 5. Include all categories in Mega Menu
+  const categoryList = Object.values(categoryMap);
   const activeCatName = hoveredCatName || (categoryList[0] ? categoryList[0].name : 'All Products');
   const activeCatObj = categoryMap[activeCatName] || categoryList[0] || { name: 'All Products', products: products };
 

@@ -1,20 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { products } from '../../data/products';
-import { categories } from '../../data/categories';
+import { useSearchParams } from 'next/navigation';
+import { useData } from '../../context/DataContext';
+import { products as defaultProducts } from '../../data/products';
+import { categories as defaultCategories } from '../../data/categories';
 import { Search, Eye, Send, Filter, ChevronRight } from 'lucide-react';
 
 export default function ProductsPage() {
-  const [selectedCat, setSelectedCat] = useState('all');
+  const searchParams = useSearchParams();
+  const catQuery = searchParams?.get('category');
+  
+  const { products: ctxProducts, categories: ctxCategories } = useData();
+  const productsList = (ctxProducts && ctxProducts.length > 0) ? ctxProducts : defaultProducts;
+  const categoriesList = (ctxCategories && ctxCategories.length > 0) ? ctxCategories : defaultCategories;
+
+  const [selectedCat, setSelectedCat] = useState(catQuery || 'all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredProducts = products.filter(p => {
-    const matchesCat = selectedCat === 'all' || p.category === selectedCat;
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.shortDescription.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    if (catQuery) {
+      setSelectedCat(catQuery);
+    }
+  }, [catQuery]);
+
+  const matchesCategory = (product, catIdOrSlug) => {
+    if (catIdOrSlug === 'all') return true;
+    const catObj = categoriesList.find(c => String(c.id) === String(catIdOrSlug) || String(c.slug) === String(catIdOrSlug) || c.name === catIdOrSlug);
+    const catSlug = (catObj?.slug || catObj?.id || catIdOrSlug).toLowerCase();
+    const catName = (catObj?.name || '').toLowerCase();
+    const pCat = (product.category || '').toLowerCase();
+    const pCatName = (product.categoryName || '').toLowerCase();
+
+    return pCat === catSlug || pCatName === catName || pCat === String(catIdOrSlug).toLowerCase() || pCatName === String(catIdOrSlug).toLowerCase();
+  };
+
+  const filteredProducts = productsList.filter(p => {
+    const matchesCat = matchesCategory(p, selectedCat);
+    const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (p.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (p.shortDescription || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
 
@@ -70,17 +96,18 @@ export default function ProductsPage() {
                   }}
                 >
                   <span>All Equipment</span>
-                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({products.length})</span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({productsList.length})</span>
                 </button>
 
-                {categories.map((c) => {
-                  const count = products.filter(p => p.category === c.id).length;
-                  const isSel = selectedCat === c.id;
+                {categoriesList.map((c) => {
+                  const catId = c.id || c.slug || c.name;
+                  const count = productsList.filter(p => matchesCategory(p, catId)).length;
+                  const isSel = String(selectedCat) === String(catId) || String(selectedCat) === String(c.slug) || selectedCat === c.name;
                   return (
                     <button
-                      key={c.id}
+                      key={c.id || c.slug || c.name}
                       type="button"
-                      onClick={() => setSelectedCat(c.id)}
+                      onClick={() => setSelectedCat(catId)}
                       style={{
                         padding: '10px 14px',
                         borderRadius: 'var(--radius-sm)',

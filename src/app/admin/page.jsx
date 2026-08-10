@@ -30,7 +30,10 @@ import {
   Clock,
   User,
   Tag,
-  Layers
+  Layers,
+  ShoppingBag,
+  ShoppingCart,
+  MapPin
 } from 'lucide-react';
 import { products as initialProducts } from '../../data/products';
 import { insights as initialBlogs } from '../../data/insights';
@@ -45,6 +48,7 @@ export default function AdminDashboardPage() {
     slides, 
     blogs, 
     aboutData, 
+    orders,
     addProduct, 
     updateProduct, 
     deleteProduct, 
@@ -57,7 +61,9 @@ export default function AdminDashboardPage() {
     addBlog, 
     updateBlog, 
     deleteBlog, 
-    updateAbout 
+    updateAbout,
+    updateOrderStatus,
+    deleteOrder 
   } = useData();
 
   const [activeTab, setActiveTab] = useState('enquiries');
@@ -69,29 +75,69 @@ export default function AdminDashboardPage() {
     setTimeout(() => setNotification(''), 4000);
   };
 
-  // Helper for File Picker (Choose File) image conversion & preview
-  const handleFileChoose = (file, callback) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      callback(reader.result);
-    };
-    reader.readAsDataURL(file);
+  // Compress image using Canvas API before storing (reduces ~2-5MB to ~80-150KB)
+  const compressImage = (file, maxWidth = 800, quality = 0.75) => {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new window.Image();
+
+      img.onload = () => {
+        let { width, height } = img;
+        // Scale down proportionally if wider than maxWidth
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(objectUrl);
+        // Use JPEG for photos (much smaller), PNG fallback for transparency
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        resolve(canvas.toDataURL(mimeType, quality));
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        // Fallback: read as-is if canvas fails
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      };
+
+      img.src = objectUrl;
+    });
   };
+
+  // Helper for File Picker — compresses image then calls callback with base64 URL
+  const handleFileChoose = async (file, callback) => {
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file);
+      callback(compressed);
+    } catch (err) {
+      // Fallback to plain FileReader if compression fails
+      const reader = new FileReader();
+      reader.onloadend = () => callback(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
 
   // 1. ENQUIRIES STATE — Load & auto-sync from localStorage + Supabase
   const [enquiries, setEnquiries] = useState([]);
 
   const loadEnquiries = async () => {
-    let combined = [];
-
-    // 1. Load from localStorage (instant)
+    // Load local state first
+    let localCombined = [];
     try {
       const local = JSON.parse(localStorage.getItem('rk_enquiries') || '[]');
-      if (Array.isArray(local)) combined = [...local];
+      if (Array.isArray(local)) localCombined = [...local];
     } catch (e) {}
 
-    // 2. Fetch from Supabase (fresh DB data)
+    // Fetch from Supabase — only add NEW entries, never overwrite local status changes
     try {
       const { data, error } = await supabase
         .from('enquiries')
@@ -112,30 +158,41 @@ export default function AdminDashboardPage() {
           date: d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : (d.date || new Date().toLocaleString('en-IN'))
         }));
 
-        // Merge without duplicate IDs
+        // Only add items that don't already exist in local — preserve local status
         supaMapped.forEach(sItem => {
-          if (!combined.some(cItem => String(cItem.id) === String(sItem.id))) {
-            combined.push(sItem);
+          const existsLocally = localCombined.some(cItem => String(cItem.id) === String(sItem.id));
+          if (!existsLocally) {
+            localCombined.push(sItem);
           }
+          // If it exists locally, keep local version (preserves status changes admin made)
         });
       }
     } catch (e) {}
 
-    setEnquiries(combined);
+    setEnquiries(localCombined);
   };
 
   useEffect(() => {
+    // Load once on mount / tab change — no aggressive polling that overwrites status
     loadEnquiries();
-
-    // Auto sync on 3s interval & window focus
-    const interval = setInterval(loadEnquiries, 3000);
-    window.addEventListener('focus', loadEnquiries);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', loadEnquiries);
-    };
   }, [activeTab]);
+
+  // Update enquiry status — saves to state + localStorage + Supabase immediately
+  const handleStatusChange = async (id, newStatus) => {
+    const updated = enquiries.map(e =>
+      String(e.id) === String(id) ? { ...e, status: newStatus } : e
+    );
+    setEnquiries(updated);
+    // Persist to localStorage so status survives any re-renders
+    try {
+      localStorage.setItem('rk_enquiries', JSON.stringify(updated));
+    } catch (err) {}
+    // Save to Supabase async
+    try {
+      await supabase.from('enquiries').update({ status: newStatus }).eq('id', String(id));
+    } catch (err) {}
+    showNotify('Status updated successfully!');
+  };
 
   const handleDeleteEnquiry = (id) => {
     if (confirm('Delete this lead enquiry?')) {
@@ -282,7 +339,7 @@ export default function AdminDashboardPage() {
 
   const [blogActiveSubTab, setBlogActiveSubTab] = useState('write');
 
-  const [aboutFormState, setAboutFormState] = useState(aboutData || {
+  const defaultAboutForm = {
     eyebrow: 'OFFICIAL R.K. GLOBAL ENGINEERING',
     title: 'Two Decades of Engineering Excellence in Construction Machinery',
     subtitle: 'We combine heavy manufacturing precision with ISO 9001 quality controls to deliver rugged machinery contractors trust implicitly across India.',
@@ -293,7 +350,8 @@ export default function AdminDashboardPage() {
     feature1Desc: 'Eliminate middleman margins with ex-factory pricing and 1-year comprehensive warranty.',
     feature2Title: 'Pan-India On-Site Technical Service Support',
     feature2Desc: 'Dedicated field engineering team for fast installation, operator training, and spare parts delivery.'
-  });
+  };
+  const [aboutFormState, setAboutFormState] = useState({ ...defaultAboutForm, ...(aboutData || {}) });
 
   // 6. THEME & SITE SETTINGS STATE
   const [themeSettings, setThemeSettings] = useState({
@@ -304,36 +362,7 @@ export default function AdminDashboardPage() {
     contactEmail: 'info@rkglobalengineering.com'
   });
 
-  // Load from Supabase if configured
-  useEffect(() => {
-    const fetchSupabaseData = async () => {
-      try {
-        const { data: supaEnquiries } = await supabase.from('enquiries').select('*');
-        if (supaEnquiries && supaEnquiries.length > 0) setEnquiries(supaEnquiries);
-
-        const { data: supaSlides } = await supabase.from('hero_slides').select('*');
-        if (supaSlides && supaSlides.length > 0) setSlides(supaSlides);
-
-        const { data: supaProducts } = await supabase.from('products').select('*');
-        if (supaProducts && supaProducts.length > 0) setProducts(supaProducts);
-
-        const { data: supaBlogs } = await supabase.from('blogs').select('*');
-        if (supaBlogs && supaBlogs.length > 0) setBlogs(supaBlogs);
-      } catch (err) {
-        console.log('Supabase sync ready on connection.');
-      }
-    };
-    fetchSupabaseData();
-  }, []);
-
   // --- HANDLERS ---
-  const handleStatusChange = async (id, newStatus) => {
-    setEnquiries(enquiries.map(e => e.id === id ? { ...e, status: newStatus } : e));
-    try {
-      await supabase.from('enquiries').update({ status: newStatus }).eq('id', id);
-    } catch (e) {}
-    showNotify('Lead status updated & saved to database.');
-  };
 
   // Slider Handlers
   const handleSaveSlide = async (e) => {
@@ -485,7 +514,7 @@ export default function AdminDashboardPage() {
   // Save About Handler
   const handleSaveAbout = async (e) => {
     e.preventDefault();
-    updateAbout(aboutData);
+    updateAbout(aboutFormState);
     showNotify('About Us section updated & saved live to website!');
   };
 
@@ -560,6 +589,7 @@ export default function AdminDashboardPage() {
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', marginBottom: '32px', paddingBottom: '4px' }}>
           {[
             { id: 'enquiries', label: 'Dashboard & Enquiries', icon: LayoutDashboard, count: enquiries.length },
+            { id: 'orders', label: 'Product Orders', icon: ShoppingBag, count: (orders || []).length },
             { id: 'slider', label: 'Hero Slider', icon: Sliders, count: slides.length },
             { id: 'categories', label: 'Categories CMS', icon: Layers, count: categories.length },
             { id: 'products', label: 'Products Catalog', icon: Package, count: products.length },
@@ -716,6 +746,147 @@ export default function AdminDashboardPage() {
                               onClick={() => handleDeleteEnquiry(enq.id)}
                               style={{ backgroundColor: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }}
                               title="Delete Enquiry"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------- TAB: PRODUCT ORDERS ------------------- */}
+        {activeTab === 'orders' && (
+          <div>
+            {/* Header & Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '18px', marginBottom: '28px' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Total Customer Orders</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0B1F33', marginTop: '4px' }}>{(orders || []).length}</div>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase' }}>New Orders</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#F47B20', marginTop: '4px' }}>{(orders || []).filter(o => o.status === 'New Order').length}</div>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563EB', textTransform: 'uppercase' }}>In Progress / Dispatched</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#2563EB', marginTop: '4px' }}>{(orders || []).filter(o => o.status === 'In Progress' || o.status === 'Dispatched').length}</div>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#16A34A', textTransform: 'uppercase' }}>Delivered Orders</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#16A34A', marginTop: '4px' }}>{(orders || []).filter(o => o.status === 'Delivered').length}</div>
+              </div>
+            </div>
+
+            {/* Orders Table Container */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '28px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShoppingBag size={20} color="#F47B20" />
+                  Customer Product Orders ({(orders || []).length})
+                </h2>
+              </div>
+
+              {(orders || []).length === 0 ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: '#94A3B8' }}>
+                  <ShoppingBag size={48} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#475569', marginBottom: '4px' }}>No Orders Received Yet</h3>
+                  <p style={{ fontSize: '0.85rem' }}>Orders placed by customers via "Order Now" button will appear here in real-time.</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Order ID & Date</th>
+                        <th>Customer Details</th>
+                        <th>Product Ordered</th>
+                        <th>Qty & Total</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((ord) => (
+                        <tr key={ord.id}>
+                          <td>
+                            <div style={{ fontWeight: 800, color: '#F47B20', fontSize: '0.875rem' }}>#{ord.id}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>{ord.date}</div>
+                          </td>
+
+                          <td>
+                            <div style={{ fontWeight: 800, color: '#1E293B', fontSize: '0.9rem' }}>{ord.customerName}</div>
+                            <div style={{ fontSize: '0.8rem', color: '#16A34A', fontWeight: 700, marginTop: '2px' }}>📞 +91 {ord.phone}</div>
+                            {ord.email && <div style={{ fontSize: '0.75rem', color: '#64748B' }}>✉️ {ord.email}</div>}
+                            {ord.address && <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>📍 {ord.address}</div>}
+                          </td>
+
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {ord.productImage && (
+                                <img src={ord.productImage} alt={ord.productName} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }} />
+                              )}
+                              <div>
+                                <div style={{ fontWeight: 800, color: '#1E293B', fontSize: '0.85rem' }}>{ord.productName}</div>
+                                {ord.productCode && <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontWeight: 700 }}>Code: {ord.productCode}</div>}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td>
+                            <div style={{ fontWeight: 800, color: '#1E293B' }}>{ord.quantity} {ord.unit || 'Pcs'}</div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#16A34A', marginTop: '2px' }}>{ord.totalAmount || ord.priceFormatted}</div>
+                            {ord.notes && <div style={{ fontSize: '0.72rem', color: '#64748B', fontStyle: 'italic', marginTop: '2px' }}>"{ord.notes}"</div>}
+                          </td>
+
+                          <td>
+                            <select
+                              value={ord.status || 'New Order'}
+                              onChange={(e) => {
+                                updateOrderStatus(ord.id, e.target.value);
+                                showNotify(`Order #${ord.id} status updated to ${e.target.value}`);
+                              }}
+                              style={{
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                border: '1px solid #CBD5E1',
+                                backgroundColor: 
+                                  ord.status === 'Delivered' ? '#DCFCE7' :
+                                  ord.status === 'Dispatched' || ord.status === 'In Progress' ? '#DBEAFE' :
+                                  ord.status === 'Cancelled' ? '#FEE2E2' : '#FFEDD5',
+                                color:
+                                  ord.status === 'Delivered' ? '#15803D' :
+                                  ord.status === 'Dispatched' || ord.status === 'In Progress' ? '#1D4ED8' :
+                                  ord.status === 'Cancelled' ? '#B91C1C' : '#C2410C',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <option value="New Order">New Order</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Dispatched">Dispatched</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </td>
+
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Delete Order #${ord.id}?`)) {
+                                  deleteOrder(ord.id);
+                                  showNotify(`Order #${ord.id} deleted.`);
+                                }
+                              }}
+                              style={{ backgroundColor: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}
+                              title="Delete Order"
                             >
                               <Trash2 size={15} />
                             </button>
@@ -951,85 +1122,165 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+
         {/* ------------------- TAB 5: ABOUT US EDITOR ------------------- */}
         {activeTab === 'about' && (
-          <div style={{ maxWidth: '780px', margin: '0 auto' }}>
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '36px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#1E293B', marginBottom: '24px' }}>
-                Edit Homepage "About Us" Section Content
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: '28px', alignItems: 'flex-start' }}>
+
+            {/* LEFT: FORM */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '32px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E293B', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Building2 size={20} color="#F47B20" />
+                Edit About Us Section
               </h2>
 
-              <form onSubmit={handleSaveAbout} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                <div>
-                  <label className="form-label">Section Eyebrow Badge</label>
-                  <input type="text" className="form-input" value={aboutFormState.eyebrow} onChange={e => setAboutFormState({ ...aboutFormState, eyebrow: e.target.value })} />
-                </div>
+              <form onSubmit={handleSaveAbout} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                <div>
-                  <label className="form-label">Main Section Heading Title *</label>
-                  <input type="text" className="form-input" required value={aboutFormState.title} onChange={e => setAboutFormState({ ...aboutFormState, title: e.target.value })} />
-                </div>
+                {/* Section 1: Basic Text */}
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px' }}>Section Text</h4>
 
-                <div>
-                  <label className="form-label">Main Description Text *</label>
-                  <textarea className="form-textarea" rows={4} value={aboutFormState.subtitle} onChange={e => setAboutFormState({ ...aboutFormState, subtitle: e.target.value })} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label className="form-label">Experience Badge Number</label>
-                    <input type="text" className="form-input" value={aboutFormState.experienceBadgeText} onChange={e => setAboutFormState({ ...aboutFormState, experienceBadgeText: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="form-label">Experience Badge Subtitle</label>
-                    <input type="text" className="form-input" value={aboutFormState.experienceBadgeSub} onChange={e => setAboutFormState({ ...aboutFormState, experienceBadgeSub: e.target.value })} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label className="form-label">Eyebrow Badge (Orange small text)</label>
+                      <input type="text" className="form-input" value={aboutFormState.eyebrow || ''} onChange={e => setAboutFormState(prev => ({ ...prev, eyebrow: e.target.value }))} placeholder="e.g. OFFICIAL R.K. GLOBAL ENGINEERING" />
+                    </div>
+                    <div>
+                      <label className="form-label">Main Heading Title *</label>
+                      <input type="text" className="form-input" required value={aboutFormState.title || ''} onChange={e => setAboutFormState(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Two Decades of Engineering Excellence" />
+                    </div>
+                    <div>
+                      <label className="form-label">Description Paragraph *</label>
+                      <textarea className="form-textarea" rows={3} value={aboutFormState.subtitle || ''} onChange={e => setAboutFormState(prev => ({ ...prev, subtitle: e.target.value }))} placeholder="Brief company description..." />
+                    </div>
                   </div>
                 </div>
 
-                {/* Choose Image File Picker */}
-                <div>
-                  <label className="form-label">Choose About Section Image File</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setAboutFormState({ ...aboutFormState, image: url }))}
-                      style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC' }}
-                    />
+                {/* Section 2: Experience Badge */}
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px' }}>Experience Badge (Orange Box on Image)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label className="form-label">Badge Number</label>
+                      <input type="text" className="form-input" value={aboutFormState.experienceBadgeText || ''} onChange={e => setAboutFormState(prev => ({ ...prev, experienceBadgeText: e.target.value }))} placeholder="e.g. 20+ YEARS" />
+                    </div>
+                    <div>
+                      <label className="form-label">Badge Subtitle</label>
+                      <input type="text" className="form-input" value={aboutFormState.experienceBadgeSub || ''} onChange={e => setAboutFormState(prev => ({ ...prev, experienceBadgeSub: e.target.value }))} placeholder="e.g. Manufacturing Excellence" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Image Upload */}
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px' }}>Section Image (Left Side)</h4>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label className="form-label">Upload Image File from Device</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChoose(e.target.files[0], (url) => setAboutFormState(prev => ({ ...prev, image: url })))}
+                        style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC', width: '100%' }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', fontWeight: 600 }}>— OR —</div>
+                    <div>
+                      <label className="form-label">Paste Image URL</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="https://example.com/image.jpg"
+                        value={aboutFormState.image?.startsWith('data:') ? '' : (aboutFormState.image || '')}
+                        onChange={e => setAboutFormState(prev => ({ ...prev, image: e.target.value }))}
+                      />
+                    </div>
                     {aboutFormState.image && (
-                      <img src={aboutFormState.image} alt="About Preview" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} />
+                      <div style={{ marginTop: '6px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #E2E8F0', height: '160px', backgroundColor: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img src={aboutFormState.image} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Feature Point #1 Title</label>
-                  <input type="text" className="form-input" value={aboutFormState.feature1Title} onChange={e => setAboutFormState({ ...aboutFormState, feature1Title: e.target.value })} />
+                {/* Section 4: Feature Points */}
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px' }}>Feature Checkpoints (✓ Points)</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', marginBottom: '8px' }}>Feature Point #1</div>
+                      <input type="text" className="form-input" placeholder="Title e.g. Factory Direct Pricing" value={aboutFormState.feature1Title || ''} onChange={e => setAboutFormState(prev => ({ ...prev, feature1Title: e.target.value }))} style={{ marginBottom: '8px' }} />
+                      <input type="text" className="form-input" placeholder="Description..." value={aboutFormState.feature1Desc || ''} onChange={e => setAboutFormState(prev => ({ ...prev, feature1Desc: e.target.value }))} />
+                    </div>
+                    <div style={{ backgroundColor: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', marginBottom: '8px' }}>Feature Point #2</div>
+                      <input type="text" className="form-input" placeholder="Title e.g. Pan-India Service Support" value={aboutFormState.feature2Title || ''} onChange={e => setAboutFormState(prev => ({ ...prev, feature2Title: e.target.value }))} style={{ marginBottom: '8px' }} />
+                      <input type="text" className="form-input" placeholder="Description..." value={aboutFormState.feature2Desc || ''} onChange={e => setAboutFormState(prev => ({ ...prev, feature2Desc: e.target.value }))} />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Feature Point #1 Description</label>
-                  <input type="text" className="form-input" value={aboutFormState.feature1Desc} onChange={e => setAboutFormState({ ...aboutFormState, feature1Desc: e.target.value })} />
-                </div>
-
-                <div>
-                  <label className="form-label">Feature Point #2 Title</label>
-                  <input type="text" className="form-input" value={aboutFormState.feature2Title} onChange={e => setAboutFormState({ ...aboutFormState, feature2Title: e.target.value })} />
-                </div>
-
-                <div>
-                  <label className="form-label">Feature Point #2 Description</label>
-                  <input type="text" className="form-input" value={aboutFormState.feature2Desc} onChange={e => setAboutFormState({ ...aboutFormState, feature2Desc: e.target.value })} />
-                </div>
-
-                <button type="submit" className="btn btn-primary" style={{ marginTop: '10px' }}>
-                  <Save size={16} />
-                  <span>Update About Us Section</span>
+                <button type="submit" className="btn btn-primary" style={{ padding: '14px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <Save size={18} />
+                  <span>Save & Update About Section Live</span>
                 </button>
               </form>
             </div>
+
+            {/* RIGHT: LIVE PREVIEW */}
+            <div style={{ position: 'sticky', top: '24px' }}>
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Eye size={14} /> Live Preview
+                </div>
+
+                {/* Image Preview */}
+                <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid #E2E8F0', marginBottom: '16px', backgroundColor: '#F8FAFC', height: '200px' }}>
+                  {aboutFormState.image ? (
+                    <img src={aboutFormState.image} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                      <ImageIcon size={32} />
+                    </div>
+                  )}
+                  {/* Badge overlay */}
+                  <div style={{ position: 'absolute', bottom: '12px', right: '12px', backgroundColor: '#F47B20', color: '#FFF', padding: '8px 12px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 4px 12px rgba(244,123,32,0.4)' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 900, lineHeight: 1 }}>{aboutFormState.experienceBadgeText || '20+ YEARS'}</div>
+                    <div style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>{aboutFormState.experienceBadgeSub || 'Manufacturing Excellence'}</div>
+                  </div>
+                </div>
+
+                {/* Text Preview */}
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                  {aboutFormState.eyebrow || 'OFFICIAL R.K. GLOBAL ENGINEERING'}
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0B1F33', lineHeight: 1.3, marginBottom: '8px' }}>
+                  {aboutFormState.title || 'Main Heading Goes Here'}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748B', lineHeight: 1.5, marginBottom: '12px' }}>
+                  {aboutFormState.subtitle || 'Description text will appear here...'}
+                </div>
+
+                {/* Feature points preview */}
+                {[
+                  { title: aboutFormState.feature1Title, desc: aboutFormState.feature1Desc },
+                  { title: aboutFormState.feature2Title, desc: aboutFormState.feature2Desc }
+                ].map((f, i) => f.title && (
+                  <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <CheckCircle style={{ color: '#F47B20', flexShrink: 0, marginTop: '2px' }} size={14} />
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1E293B' }}>{f.title}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{f.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         )}
+
 
 
 
@@ -1102,7 +1353,7 @@ export default function AdminDashboardPage() {
                     <input 
                       type="file" 
                       accept="image/*" 
-                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setSlideModal({ ...slideModal, data: { ...slideModal.data, image: url } }))}
+                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setSlideModal(prev => ({ ...prev, data: { ...prev.data, image: url } })))}
                       style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC', width: '100%' }}
                     />
                     {slideModal.data.image && (
@@ -1217,7 +1468,7 @@ export default function AdminDashboardPage() {
                     <input 
                       type="file" 
                       accept="image/*" 
-                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setProductModal({ ...productModal, data: { ...productModal.data, image: url } }))}
+                      onChange={(e) => handleFileChoose(e.target.files[0], (url) => setProductModal(prev => ({ ...prev, data: { ...prev.data, image: url } })))}
                       style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#F8FAFC', width: '100%' }}
                     />
                     {productModal.data.image && (
@@ -1438,7 +1689,7 @@ export default function AdminDashboardPage() {
                             <input 
                               type="file" 
                               accept="image/*" 
-                              onChange={(e) => handleFileChoose(e.target.files[0], (url) => setBlogModal({ ...blogModal, data: { ...blogModal.data, image: url } }))}
+                              onChange={(e) => handleFileChoose(e.target.files[0], (url) => setBlogModal(prev => ({ ...prev, data: { ...prev.data, image: url } })))}
                               style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: '6px', backgroundColor: '#FFFFFF', width: '100%', fontSize: '0.85rem' }}
                             />
                             <div style={{ fontSize: '0.75rem', color: '#64748B' }}>

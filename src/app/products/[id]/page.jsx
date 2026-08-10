@@ -16,19 +16,44 @@ import {
   Facebook, 
   Twitter, 
   Linkedin,
-  CheckCircle
+  CheckCircle,
+  X,
+  Copy,
+  CheckCheck,
+  Building,
+  MapPin,
+  Phone,
+  Mail,
+  User,
+  Package
 } from 'lucide-react';
 
 export default function ProductDetailPage() {
   const params = useParams();
   const productId = params?.id;
 
-  const { products } = useData();
+  const { products, addOrder } = useData();
   const allProducts = products && products.length > 0 ? products : staticProducts;
   const product = allProducts.find(p => p.id === productId || p.code === productId) || allProducts[0];
 
   const [activeImage, setActiveImage] = useState(product.image);
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'description'
+
+  // Modal states
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [copiedText, setCopiedText] = useState('');
+
+  // Order form state
+  const [orderForm, setOrderForm] = useState({
+    customerName: '',
+    phone: '',
+    email: '',
+    address: '',
+    quantity: '1',
+    notes: ''
+  });
+  const [placedOrder, setPlacedOrder] = useState(null);
 
   // Requirement form state
   const [reqQuantity, setReqQuantity] = useState('1');
@@ -42,15 +67,55 @@ export default function ProductDetailPage() {
     .filter(p => p.id !== product.id)
     .slice(0, 3);
 
-  const handleOrderNow = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('openQuoteModal', { detail: product }));
+  const handleCopyNumber = (num, label) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(num);
+      setCopiedText(label);
+      setTimeout(() => setCopiedText(''), 3000);
     }
+  };
+
+  const handleOrderSubmit = async (e) => {
+    e.preventDefault();
+    if (!orderForm.customerName || !orderForm.phone || !orderForm.address) {
+      alert('Please fill Name, Phone number and Delivery Address.');
+      return;
+    }
+
+    const created = await addOrder({
+      customerName: orderForm.customerName,
+      phone: orderForm.phone,
+      email: orderForm.email,
+      address: orderForm.address,
+      productName: product.name,
+      productCode: product.code,
+      productId: product.id,
+      productImage: product.image,
+      priceFormatted: product.priceFormatted,
+      quantity: orderForm.quantity || '1',
+      unit: 'Piece / Pieces',
+      totalAmount: product.priceFormatted,
+      notes: orderForm.notes
+    });
+
+    setPlacedOrder(created);
   };
 
   const handleReqSubmit = (e) => {
     e.preventDefault();
     if (!reqMobile.trim()) return;
+    addOrder({
+      customerName: 'Requirement Request',
+      phone: reqMobile,
+      productName: product.name,
+      productCode: product.code,
+      productId: product.id,
+      productImage: product.image,
+      priceFormatted: product.priceFormatted,
+      quantity: reqQuantity,
+      unit: reqUnit,
+      notes: reqNotes
+    });
     setReqSubmitted(true);
     setTimeout(() => setReqSubmitted(false), 4000);
   };
@@ -195,7 +260,7 @@ export default function ProductDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
                 <button 
                   type="button"
-                  onClick={handleOrderNow}
+                  onClick={() => { setPlacedOrder(null); setShowOrderModal(true); }}
                   style={{
                     backgroundColor: '#16A34A',
                     color: '#FFFFFF',
@@ -216,11 +281,13 @@ export default function ProductDetailPage() {
                   <span>Order Now</span>
                 </button>
 
-                <a 
-                  href="tel:+919876543210"
+                <button 
+                  type="button"
+                  onClick={() => setShowCallModal(true)}
                   style={{
                     backgroundColor: '#F59E0B',
                     color: '#FFFFFF',
+                    border: 'none',
                     borderRadius: '8px',
                     padding: '12px 16px',
                     fontWeight: 700,
@@ -229,13 +296,13 @@ export default function ProductDetailPage() {
                     alignItems: 'center',
                     justify: 'center',
                     gap: '8px',
-                    textDecoration: 'none',
+                    cursor: 'pointer',
                     boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)'
                   }}
                 >
                   <PhoneCall size={18} />
                   <span>Call Now</span>
-                </a>
+                </button>
 
                 <a 
                   href="https://wa.me/919876543210?text=Hello%20R.K.%20Global%20Engineering,%20I%20am%20interested%20in%20" 
@@ -697,6 +764,239 @@ export default function ProductDetailPage() {
         </div>
 
       </div>
+
+      {/* ------------------- MODAL: ORDER NOW ------------------- */}
+      {showOrderModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(11, 31, 51, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', maxWidth: '540px', width: '100%', padding: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+            
+            {/* Close button */}
+            <button 
+              type="button" 
+              onClick={() => setShowOrderModal(false)}
+              style={{ position: 'absolute', top: '20px', right: '20px', background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}
+            >
+              <X size={20} />
+            </button>
+
+            {placedOrder ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <CheckCircle size={36} />
+                </div>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#1E293B', marginBottom: '8px' }}>Order Placed Successfully!</h3>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#F47B20', backgroundColor: '#FFF7ED', display: 'inline-block', padding: '4px 14px', borderRadius: '20px', marginBottom: '16px' }}>
+                  Order Reference ID: #{placedOrder.id}
+                </div>
+                <p style={{ fontSize: '0.9rem', color: '#64748B', lineHeight: 1.6, marginBottom: '24px' }}>
+                  Thank you <strong>{placedOrder.customerName}</strong>! We have received your order for <strong>{product.name}</strong>. Our sales manager will contact you at <strong>+91 {placedOrder.phone}</strong> shortly.
+                </p>
+                <button 
+                  type="button" 
+                  onClick={() => setShowOrderModal(false)}
+                  style={{ backgroundColor: '#F47B20', color: '#FFFFFF', border: 'none', borderRadius: '8px', padding: '12px 28px', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}
+                >
+                  Done & Close
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#DCFCE7', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ShoppingCart size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1E293B', lineHeight: 1.2 }}>Place Equipment Order</h3>
+                    <p style={{ fontSize: '0.78rem', color: '#64748B', margin: 0 }}>Direct Ex-Factory Order & Delivery</p>
+                  </div>
+                </div>
+
+                {/* Product Summary Box */}
+                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+                  <img src={product.image} alt={product.name} style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#16A34A', fontWeight: 800 }}>Price: {product.priceFormatted}</div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleOrderSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Full Name *</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      required 
+                      placeholder="Enter your name" 
+                      value={orderForm.customerName}
+                      onChange={e => setOrderForm(prev => ({ ...prev, customerName: e.target.value }))}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Phone Number *</label>
+                      <input 
+                        type="tel" 
+                        className="form-input" 
+                        required 
+                        placeholder="10 digit mobile" 
+                        value={orderForm.phone}
+                        onChange={e => setOrderForm(prev => ({ ...prev, phone: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Email (Optional)</label>
+                      <input 
+                        type="email" 
+                        className="form-input" 
+                        placeholder="email@example.com" 
+                        value={orderForm.email}
+                        onChange={e => setOrderForm(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Delivery Address / City *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        required 
+                        placeholder="e.g. Delhi NCR, Sector 62" 
+                        value={orderForm.address}
+                        onChange={e => setOrderForm(prev => ({ ...prev, address: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Quantity</label>
+                      <input 
+                        type="number" 
+                        className="form-input" 
+                        min="1"
+                        value={orderForm.quantity}
+                        onChange={e => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Notes / Special Requirements</label>
+                    <textarea 
+                      className="form-textarea" 
+                      rows={2} 
+                      placeholder="e.g. Need 3-phase motor option, site delivery date..." 
+                      value={orderForm.notes}
+                      onChange={e => setOrderForm(prev => ({ ...prev, notes: e.target.value }))}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    style={{ backgroundColor: '#16A34A', color: '#FFFFFF', border: 'none', borderRadius: '8px', padding: '14px', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', marginTop: '6px', boxShadow: '0 4px 14px rgba(22,163,74,0.3)' }}
+                  >
+                    Confirm & Place Order Now
+                  </button>
+                </form>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ------------------- MODAL: CALL NOW ------------------- */}
+      {showCallModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(11, 31, 51, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', maxWidth: '460px', width: '100%', padding: '28px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', position: 'relative' }}>
+            
+            <button 
+              type="button" 
+              onClick={() => setShowCallModal(false)}
+              style={{ position: 'absolute', top: '16px', right: '16px', background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                <PhoneCall size={24} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#1E293B', marginBottom: '4px' }}>Call R.K. Global Engineering</h3>
+              <p style={{ fontSize: '0.8rem', color: '#64748B' }}>Tap to call or copy official helpline numbers</p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+              {/* Number 1 */}
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase' }}>Primary Sales & Orders</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#1E293B', marginTop: '2px' }}>+91 98765 43210</div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    type="button"
+                    onClick={() => handleCopyNumber('+919876543210', 'Primary Sales')}
+                    style={{ backgroundColor: copiedText === 'Primary Sales' ? '#DCFCE7' : '#FFFFFF', color: copiedText === 'Primary Sales' ? '#16A34A' : '#475569', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '8px 12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {copiedText === 'Primary Sales' ? <CheckCheck size={14} /> : <Copy size={14} />}
+                    <span>{copiedText === 'Primary Sales' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+
+                  <a 
+                    href="tel:+919876543210" 
+                    style={{ backgroundColor: '#16A34A', color: '#FFFFFF', borderRadius: '6px', padding: '8px 12px', fontSize: '0.78rem', fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Phone size={14} /> Call
+                  </a>
+                </div>
+              </div>
+
+              {/* Number 2 */}
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#F47B20', textTransform: 'uppercase' }}>Technical & Site Service</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#1E293B', marginTop: '2px' }}>+91 98765 43211</div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    type="button"
+                    onClick={() => handleCopyNumber('+919876543211', 'Technical')}
+                    style={{ backgroundColor: copiedText === 'Technical' ? '#DCFCE7' : '#FFFFFF', color: copiedText === 'Technical' ? '#16A34A' : '#475569', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '8px 12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {copiedText === 'Technical' ? <CheckCheck size={14} /> : <Copy size={14} />}
+                    <span>{copiedText === 'Technical' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+
+                  <a 
+                    href="tel:+919876543211" 
+                    style={{ backgroundColor: '#F47B20', color: '#FFFFFF', borderRadius: '6px', padding: '8px 12px', fontSize: '0.78rem', fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Phone size={14} /> Call
+                  </a>
+                </div>
+              </div>
+
+              {/* WhatsApp direct */}
+              <a 
+                href="https://wa.me/919876543210?text=Hello%20R.K.%20Global%20Engineering," 
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ backgroundColor: '#25D366', color: '#FFFFFF', borderRadius: '10px', padding: '12px', fontWeight: 800, fontSize: '0.88rem', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)' }}
+              >
+                <MessageSquare size={18} /> Chat on WhatsApp Directly
+              </a>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

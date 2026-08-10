@@ -5,26 +5,23 @@ import Link from 'next/link';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
+const FALLBACK_IMG = '/images/img/ChatGPT Image Aug 8, 2026, 04_03_52 PM.png';
+
 export default function AboutSection() {
   const { aboutData } = useData();
-  const [imgSrc, setImgSrc] = useState(aboutData?.image || '/images/img/Untitled design - 2026-02-02T154951.040.webp');
+  const [imgError, setImgError] = useState(false);
 
-  const handleImageError = () => {
-    if (imgSrc !== '/images/rebar-bending.svg') {
-      setImgSrc('/images/rebar-bending.svg');
-    }
-  };
-
-  const imageToDisplay = aboutData?.image || imgSrc;
+  // Always use latest aboutData.image; fallback only on error
+  const imageToDisplay = (!imgError && aboutData?.image) ? aboutData.image : FALLBACK_IMG;
 
   return (
     <section style={{ padding: '90px 0', backgroundColor: '#FFFFFF' }}>
       <div className="container">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', alignItems: 'center' }} className="about-grid">
-          
+
           {/* Left Visual */}
           <div style={{ position: 'relative' }}>
-            <div 
+            <div
               style={{
                 borderRadius: 'var(--radius-lg)',
                 overflow: 'hidden',
@@ -38,15 +35,15 @@ export default function AboutSection() {
                 justify: 'center'
               }}
             >
-              <img 
-                src={imageToDisplay} 
-                alt="About R K Global Engineering" 
-                onError={handleImageError}
+              <img
+                src={imageToDisplay}
+                alt="About R K Global Engineering"
+                onError={() => setImgError(true)}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
 
               {/* Experience Badge */}
-              <div 
+              <div
                 style={{
                   position: 'absolute',
                   bottom: '24px',
@@ -70,7 +67,7 @@ export default function AboutSection() {
           {/* Right Content */}
           <div>
             <div className="eyebrow">{aboutData?.eyebrow || 'OFFICIAL R.K. GLOBAL ENGINEERING'}</div>
-            
+
             <h2 className="heading-lg" style={{ marginBottom: '18px' }}>
               {aboutData?.title || 'Two Decades of Engineering Excellence in Construction Machinery'}
             </h2>

@@ -22,68 +22,77 @@ export default function BlogSection() {
 
         {/* 3 Editorial Cards Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px' }} className="blog-grid">
-          {insights.map((item) => (
-            <article 
-              key={item.id}
-              style={{
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-light)',
-                borderRadius: 'var(--radius-md)',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                transition: 'var(--transition)'
-              }}
-              className="product-card"
-            >
-              <div style={{ height: '200px', overflow: 'hidden', position: 'relative' }}>
-                <img 
-                  src={item.image} 
-                  alt={item.title} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }}
-                />
-                <span 
+          {insights.map((item) => {
+            const articleUrl = `/blogs/${item.id || item.slug}`;
+            return (
+              <Link
+                key={item.id || item.slug}
+                href={articleUrl}
+                style={{ textDecoration: 'none' }}
+              >
+                <article 
                   style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: '12px',
-                    backgroundColor: 'var(--primary)',
-                    color: 'var(--accent)',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    padding: '4px 10px',
-                    borderRadius: '4px'
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    transition: 'var(--transition)'
                   }}
+                  className="product-card"
                 >
-                  {item.category}
-                </span>
-              </div>
-
-              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={13} />
-                    <span>{item.date}</span>
+                  <div style={{ height: '200px', overflow: 'hidden', position: 'relative' }}>
+                    <img 
+                      src={item.image} 
+                      alt={item.title} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }}
+                    />
+                    <span 
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        backgroundColor: 'var(--primary)',
+                        color: 'var(--accent)',
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        padding: '4px 10px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      {item.category}
+                    </span>
                   </div>
-                  <span>•</span>
-                  <span>{item.readTime}</span>
-                </div>
 
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)', lineHeight: 1.35, marginBottom: '12px' }}>
-                  {item.title}
-                </h3>
+                  <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar size={13} />
+                        <span>{item.date}</span>
+                      </div>
+                      <span>•</span>
+                      <span>{item.readTime}</span>
+                    </div>
 
-                <p className="text-body" style={{ fontSize: '0.875rem', marginBottom: '20px' }}>
-                  {item.excerpt}
-                </p>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)', lineHeight: 1.35, marginBottom: '12px' }}>
+                      {item.title}
+                    </h3>
 
-                <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent)' }}>
-                  <span>Read Article</span>
-                  <ArrowRight size={16} />
-                </div>
-              </div>
-            </article>
-          ))}
+                    <p className="text-body" style={{ fontSize: '0.875rem', marginBottom: '20px' }}>
+                      {item.excerpt}
+                    </p>
+
+                    <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent)' }}>
+                      <span>Read Article</span>
+                      <ArrowRight size={16} />
+                    </div>
+                  </div>
+                </article>
+              </Link>
+            );
+          })}
         </div>
 
       </div>
